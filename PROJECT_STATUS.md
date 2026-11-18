@@ -15,6 +15,11 @@ sketchbook root until 2026-11-18).
   (`me.akashmahor.automation.web`) and the admin email are in the Pi's env file (backup `automation.env.bak-20261118`).
   Old binary + unit + source: `~/automation/backup-2026-11-18/`. Logs show all four sign-in methods on.
 - Next: the user tests Google and Apple sign-in in the browser; confirm the master reconnected (page shows Online).
+- Users are managed in the env file for now (how-to: `server/README.md` → "Adding or removing people"). Offered,
+  not started: an approval screen (pending requests, approve/deny, roles, remove) stored in the database.
+- iOS app: plan and rules in `ios/README.md`. Before starting it, create the Google **iOS** OAuth client and add its
+  ID to `GOOGLE_APP_CLIENT_IDS` (not set on the Pi yet). Server additions the app may need: `DELETE /api/v1/me`,
+  approval endpoints, Apple server-to-server notifications.
 - Web page: members no longer see LED / Scan / Re-home / Learn travel (the server refuses them anyway).
 
 ## Update 2026-11-16 — curtain node E26D WORKS on the real mechanism (READ FIRST for curtain)

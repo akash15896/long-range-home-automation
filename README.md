@@ -11,7 +11,8 @@ browser ── HTTPS ──> Rust server (Raspberry Pi, Cloudflare tunnel) ─�
 | Folder | Contents |
 |---|---|
 | [`firmware/`](firmware/) | Arduino sketches: master, Pico/ESP32/Nano nodes, experiments, perfboard + PCB generators |
-| [`server/`](server/) | Rust (axum) web server and its systemd/env deployment files |
+| [`server/`](server/) | Rust (axum) web server: Google/Apple sign-in, REST API ([`API.md`](server/API.md)), deployment files |
+| [`ios/`](ios/) | iOS app (not started): build notes, sign-in flow, API usage |
 | [`scripts/`](scripts/) | Helper scripts (compile all sketches) |
 | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | Running log: hardware state, test results, next steps |
 | [`AGENTS.md`](AGENTS.md) | Build, upload, protocol and safety notes (for humans and coding agents) |
@@ -22,6 +23,6 @@ browser ── HTTPS ──> Rust server (Raspberry Pi, Cloudflare tunnel) ─�
    the libraries: `arduino-cli lib install "LoRa@0.8.0" "WebSockets@2.6.1" "ArduinoJson@7.2.1"`.
 2. `cp firmware/LoRa_esp32_master/secrets.example.h firmware/LoRa_esp32_master/secrets.h` and fill it in.
 3. `scripts/build-firmware.sh` to compile everything. Each sketch's board is set in its `sketch.yaml`.
-4. Server: see [`server/README.md`](server/README.md).
+4. Server: see [`server/README.md`](server/README.md). Build for the Pi with `scripts/build-server-pi.sh`.
 
 The LoRa protocol has no authentication yet, so anyone with a 433 MHz radio can send commands.

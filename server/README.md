@@ -21,6 +21,22 @@ The HTML pages in `static/` are compiled into the binary with `include_str!`, so
   Rate-limited to 10 tries per 15 minutes per IP. Leave empty to turn it off.
 - Tokens are random and stored only as SHA-256 hashes in SQLite, so restarts keep everyone signed in.
 
+### Adding or removing people
+There is no approval screen yet (planned, see `ios/README.md` → "Server work"). The allowlist is two lines in
+`/etc/automation/automation.env` on the Pi, read at startup:
+```
+AUTOMATION_ADMINS=you@gmail.com
+AUTOMATION_MEMBERS=family1@gmail.com,family2@icloud.com
+```
+1. Edit the file (`sudo nano /etc/automation/automation.env`), comma-separated, no spaces needed.
+2. `sudo systemctl restart automation`. Existing logins stay valid; removed people are refused on their next
+   request and their open pages/app sockets close within a minute.
+3. **Google:** while the OAuth consent screen is in *Testing*, Google itself blocks anyone not listed under
+   *Test users* (Google Auth Platform → Audience). Add them there too, or publish the app (no review needed for
+   `openid email profile`). Apple has no such list.
+4. Apple "Hide My Email" users sign in as `…@privaterelay.appleid.com`; add that address, or have them share
+   their real email.
+
 ### Google setup (console.cloud.google.com)
 1. Create (or pick) a project. **APIs & Services → OAuth consent screen**: External, app name, your email;
    scopes `openid`, `email`, `profile`. While the app is in "Testing", add every allowed person as a test user

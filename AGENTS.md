@@ -26,7 +26,9 @@ and next steps; the newest updates are at the top of each section. Read `LOCAL_N
 | `firmware/experiments/` | Early tests and probes (hello link test, SX1278 ID probe, stepper spin tests, standalone dimmer). |
 | `server/` | Rust automation server (`src/main.rs`; `static/*.html` are embedded with `include_str!`). |
 | `server/deploy/` | systemd unit and env template. |
+| `ios/` | iOS app (not started). `ios/README.md` = plan, identifiers, sign-in/refresh rules, data model. |
 | `scripts/build-firmware.sh` | Compile-check sketches (no upload). |
+| `scripts/build-server-pi.sh` | Cross-compile the server for the Pi (Docker, aarch64). |
 
 Each Arduino sketch folder **must keep the same name as its `.ino`** (Arduino rule). Helper headers live
 next to the `.ino` (e.g. `dimmer_channel.h`). Each sketch folder has a `sketch.yaml` with its `default_fqbn`.
