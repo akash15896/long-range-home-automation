@@ -1,19 +1,20 @@
-//! Automation server for automation.akashmahor.me.
+//! Automation server for the LoRa home-automation system.
 //!
-//! A password-protected web page switches the ESP32 LoRa master's LED and the Nano nodes'
-//! relays, sets the level of a node's fan regulator (stepper-driven knob) and moves curtain nodes. Browsers and the ESP32 each keep a WebSocket open to this server:
+//! A web page and a mobile app switch the nodes' relays, set fan and dimmer levels and move
+//! curtains. Every command goes to the ESP32 LoRa master, which keeps a WebSocket open here:
 //!
-//!   browser <-> /ws/ui      needs the login cookie
-//!   ESP32   <-> /ws/device  needs "Authorization: Bearer <AUTOMATION_DEVICE_TOKEN>"
+//!   browser <-> /ws/ui        session cookie (+ Origin check), or a Bearer access token (app)
+//!   app     --> /api/v1/...    REST, Bearer access token (see api.rs); the page may use its cookie
+//!   ESP32   <-> /ws/device    "Authorization: Bearer <AUTOMATION_DEVICE_TOKEN>"
 //!
-//! Browser commands are checked, given an id and forwarded to the ESP32. The ESP32 answers
-//! with results, which update the shared state that every open page sees.
-//!
-//! Settings (environment variables, normally from /etc/automation/automation.env):
-//!   AUTOMATION_PASSWORD      login password for the web page
-//!   AUTOMATION_DEVICE_TOKEN  secret the ESP32 sends when connecting
-//!   AUTOMATION_ORIGIN        public address, e.g. https://automation.akashmahor.me
-//!   AUTOMATION_BIND          listen address (default 127.0.0.1:3000; cloudflared connects here)
+//! People sign in with Google or Apple (allowlisted emails, admin/member roles) or with the
+//! emergency password (see auth.rs). Settings: config.rs and deploy/automation.env.example.
+
+mod api;
+mod auth;
+mod config;
+mod db;
+mod oidc;
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -27,26 +28,26 @@ use std::{
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Form, Query, State,
+        State,
     },
     http::{header, HeaderMap, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
     Router,
 };
-use rand::RngCore;
-use serde::Deserialize;
 use serde_json::{json, Value};
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 
-const SESSION_COOKIE: &str = "automation_session";
-const SESSION_LIFETIME: Duration = Duration::from_secs(30 * 24 * 3600);
+use crate::{
+    auth::{AuthUser, Via},
+    config::Config,
+};
+
 const DEVICE_PING_EVERY: Duration = Duration::from_secs(20);
 const DEVICE_SILENCE_LIMIT: Duration = Duration::from_secs(60);
 const CURTAIN_POLL_EVERY: Duration = Duration::from_secs(3);
 
 const INDEX_HTML: &str = include_str!("../static/index.html");
-const LOGIN_HTML: &str = include_str!("../static/login.html");
 
 #[derive(Default)]
 struct Node {
@@ -64,7 +65,7 @@ struct Node {
 }
 
 #[derive(Default)]
-struct Status {
+pub struct Status {
     master_online: bool,
     led: Option<bool>,
     nodes: BTreeMap<String, Node>,
@@ -73,131 +74,124 @@ struct Status {
     refresh_on_nodes: bool,
 }
 
-struct AppState {
-    password: String,
-    device_token: String,
-    allowed_origin: String,
-    sessions: Mutex<HashMap<String, Instant>>, // session token -> expiry
+pub struct AppState {
+    config: Config,
+    db: db::Db,
+    http: reqwest::Client,
+    google_keys: oidc::KeyCache,
+    apple_keys: oidc::KeyCache,
+    /// Web sign-ins started but not finished yet, by their `state` value.
+    pending: Mutex<HashMap<String, auth::PendingFlow>>,
+    /// Password login attempts per IP.
+    login_limiter: auth::RateLimiter,
+    /// App sign-in / refresh calls per IP.
+    api_limiter: auth::RateLimiter,
     // Connection id + sender of the ESP32 currently connected. A new connection replaces an old one.
     device: Mutex<Option<(u64, mpsc::UnboundedSender<String>)>>,
     status: Mutex<Status>,
     ui_tx: broadcast::Sender<String>, // to every open page
     next_id: AtomicU64,
+    /// REST calls waiting for the master's result, by command id.
+    waiters: Mutex<HashMap<u64, oneshot::Sender<Value>>>,
 }
 
 #[tokio::main]
 async fn main() {
-    let env = |name: &str| std::env::var(name).unwrap_or_else(|_| panic!("{name} is not set"));
-    let bind = std::env::var("AUTOMATION_BIND").unwrap_or_else(|_| "127.0.0.1:3000".into());
+    let config = Config::from_env();
+    let db = db::Db::open(&config.db_path).unwrap_or_else(|e| panic!("cannot open database {}: {e}", config.db_path));
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .user_agent("automation-server")
+        .build()
+        .expect("cannot build HTTP client");
+    let bind = config.bind.clone();
+    println!(
+        "sign-in methods: password {}, Google {}, Apple web {}, Apple app {}",
+        on_off(config.password.is_some()),
+        on_off(config.google.is_some()),
+        on_off(config.apple.as_ref().is_some_and(|a| a.services_id.is_some())),
+        on_off(config.apple.as_ref().is_some_and(|a| !a.bundle_ids.is_empty())),
+    );
 
-    let state = Arc::new(AppState {
-        password: env("AUTOMATION_PASSWORD"),
-        device_token: env("AUTOMATION_DEVICE_TOKEN"),
-        allowed_origin: env("AUTOMATION_ORIGIN"),
-        sessions: Mutex::new(HashMap::new()),
-        device: Mutex::new(None),
-        status: Mutex::new(Status::default()),
-        ui_tx: broadcast::channel(64).0,
-        next_id: AtomicU64::new(1),
-    });
-
+    let state = Arc::new(new_state(config, db, http));
     tokio::spawn(poll_moving_curtains(state.clone()));
+    tokio::spawn(prune_tokens(state.clone()));
 
-    let app = Router::new()
-        .route("/", get(index))
-        .route("/login", get(login_page).post(login))
-        .route("/logout", post(logout))
-        .route("/api/session", get(session_check))
-        .route("/ws/ui", get(ui_ws))
-        .route("/ws/device", get(device_ws))
-        .with_state(state);
-
+    let app = router(state);
     let listener = tokio::net::TcpListener::bind(&bind).await.expect("cannot listen");
     println!("automation-server listening on {bind}");
     axum::serve(listener, app).await.expect("server error");
 }
 
-// ---------- login ----------
-
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+fn new_state(config: Config, db: db::Db, http: reqwest::Client) -> AppState {
+    AppState {
+        config,
+        db,
+        http,
+        google_keys: oidc::KeyCache::new(oidc::Provider::Google),
+        apple_keys: oidc::KeyCache::new(oidc::Provider::Apple),
+        pending: Mutex::new(HashMap::new()),
+        login_limiter: auth::RateLimiter::new(10, Duration::from_secs(15 * 60)),
+        api_limiter: auth::RateLimiter::new(30, Duration::from_secs(60)),
+        device: Mutex::new(None),
+        status: Mutex::new(Status::default()),
+        ui_tx: broadcast::channel(64).0,
+        next_id: AtomicU64::new(1),
+        waiters: Mutex::new(HashMap::new()),
+    }
 }
 
-fn session_token(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get_all(header::COOKIE)
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .flat_map(|v| v.split(';'))
-        .find_map(|c| c.trim().strip_prefix(&format!("{SESSION_COOKIE}=")).map(String::from))
+fn on_off(on: bool) -> &'static str {
+    if on { "on" } else { "off" }
 }
 
-async fn logged_in(st: &AppState, headers: &HeaderMap) -> bool {
-    let Some(token) = session_token(headers) else { return false };
-    let sessions = st.sessions.lock().await;
-    sessions.get(&token).is_some_and(|expiry| *expiry > Instant::now())
+fn router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/", get(index))
+        .route("/login", get(auth::login_page).post(auth::password_login))
+        .route("/logout", post(auth::logout))
+        .route("/auth/google/start", get(auth::google_start))
+        .route("/auth/google/callback", get(auth::google_callback))
+        .route("/auth/apple/start", get(auth::apple_start))
+        .route("/auth/apple/callback", post(auth::apple_callback))
+        .route("/api/session", get(session_check))
+        .route("/api/v1/auth/google", post(auth::app_google))
+        .route("/api/v1/auth/apple", post(auth::app_apple))
+        .route("/api/v1/auth/refresh", post(auth::app_refresh))
+        .route("/api/v1/auth/logout", post(auth::app_logout))
+        .route("/api/v1/me", get(api::me))
+        .route("/api/v1/state", get(api::state))
+        .route("/api/v1/commands", post(api::command))
+        .route("/ws/ui", get(ui_ws))
+        .route("/ws/device", get(device_ws))
+        .with_state(state)
+}
+
+/// Deletes expired tokens once an hour.
+async fn prune_tokens(st: Arc<AppState>) {
+    let mut tick = tokio::time::interval(Duration::from_secs(3600));
+    loop {
+        tick.tick().await;
+        if let Err(e) = st.db.prune() {
+            eprintln!("could not prune tokens: {e}");
+        }
+    }
 }
 
 async fn index(State(st): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    if logged_in(&st, &headers).await {
-        Html(INDEX_HTML).into_response()
-    } else {
-        Redirect::to("/login").into_response()
+    match auth::authenticate(&st, &headers) {
+        Ok(u) if u.via == Via::Cookie => Html(INDEX_HTML).into_response(),
+        _ => Redirect::to("/login").into_response(),
     }
 }
 
 async fn session_check(State(st): State<Arc<AppState>>, headers: HeaderMap) -> StatusCode {
-    if logged_in(&st, &headers).await { StatusCode::NO_CONTENT } else { StatusCode::UNAUTHORIZED }
-}
-
-#[derive(Deserialize)]
-struct LoginQuery {
-    e: Option<String>,
-}
-
-async fn login_page(Query(q): Query<LoginQuery>) -> Html<String> {
-    let error = if q.e.is_some() { "Wrong password. Try again." } else { "" };
-    Html(LOGIN_HTML.replace("{{ERROR}}", error))
-}
-
-#[derive(Deserialize)]
-struct LoginForm {
-    password: String,
-}
-
-async fn login(State(st): State<Arc<AppState>>, Form(form): Form<LoginForm>) -> Response {
-    if !constant_time_eq(form.password.as_bytes(), st.password.as_bytes()) {
-        tokio::time::sleep(Duration::from_secs(1)).await; // slows down password guessing
-        return Redirect::to("/login?e=1").into_response();
-    }
-
-    let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
-    let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-
-    let mut sessions = st.sessions.lock().await;
-    let now = Instant::now();
-    sessions.retain(|_, expiry| *expiry > now);
-    sessions.insert(token.clone(), now + SESSION_LIFETIME);
-
-    let cookie = format!(
-        "{SESSION_COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age={}",
-        SESSION_LIFETIME.as_secs()
-    );
-    ([(header::SET_COOKIE, cookie)], Redirect::to("/")).into_response()
-}
-
-async fn logout(State(st): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    if let Some(token) = session_token(&headers) {
-        st.sessions.lock().await.remove(&token);
-    }
-    let cookie = format!("{SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0");
-    ([(header::SET_COOKIE, cookie)], Redirect::to("/login")).into_response()
+    if auth::authenticate(&st, &headers).is_ok() { StatusCode::NO_CONTENT } else { StatusCode::UNAUTHORIZED }
 }
 
 // ---------- shared state sent to pages ----------
 
-fn snapshot(status: &Status) -> String {
+pub fn snapshot(status: &Status) -> String {
     let nodes: Vec<Value> = status
         .nodes
         .iter()
@@ -224,36 +218,37 @@ async fn broadcast_state(st: &AppState, log: Option<(String, &str)>) {
     }
 }
 
-// ---------- browser WebSocket ----------
-
-// Blocks other websites from opening this WebSocket with the user's cookie.
-fn origin_allowed(st: &AppState, headers: &HeaderMap) -> bool {
-    let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else {
-        return false;
-    };
-    let host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
-    origin == st.allowed_origin || origin.split("://").nth(1) == Some(host)
-}
+// ---------- browser / app WebSocket ----------
 
 async fn ui_ws(ws: WebSocketUpgrade, State(st): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    if !logged_in(&st, &headers).await || !origin_allowed(&st, &headers) {
-        return StatusCode::UNAUTHORIZED.into_response();
+    let user = match auth::authenticate(&st, &headers) {
+        Ok(u) => u,
+        Err(e) => return e.into_response(),
+    };
+    // A cookie is sent by the browser automatically, so check that our own page opened the socket.
+    if user.via == Via::Cookie && !auth::origin_allowed(&st, &headers) {
+        return StatusCode::FORBIDDEN.into_response();
     }
-    ws.on_upgrade(move |socket| run_ui(socket, st))
+    ws.on_upgrade(move |socket| run_ui(socket, st, user))
 }
 
-async fn run_ui(mut socket: WebSocket, st: Arc<AppState>) {
+async fn run_ui(mut socket: WebSocket, st: Arc<AppState>, user: AuthUser) {
     let mut updates = st.ui_tx.subscribe();
     let snap = snapshot(&*st.status.lock().await);
-    if socket.send(Message::Text(snap)).await.is_err() {
+    let hello = json!({ "type": "me", "email": user.user.email, "name": user.user.name, "role": user.role.as_str() });
+    if socket.send(Message::Text(hello.to_string())).await.is_err() || socket.send(Message::Text(snap)).await.is_err() {
         return;
     }
+    // Re-check the login now and then, so signing out or being removed from the allowlist
+    // also closes sockets that are already open.
+    let mut recheck = tokio::time::interval(Duration::from_secs(60));
+    recheck.tick().await;
 
     loop {
         tokio::select! {
             msg = socket.recv() => match msg {
                 Some(Ok(Message::Text(text))) => {
-                    if let Err(e) = forward_ui_command(&st, &text).await {
+                    if let Err(e) = handle_ui_command(&st, &user, &text).await {
                         if socket.send(Message::Text(log_message(&e, "error"))).await.is_err() {
                             break;
                         }
@@ -276,90 +271,27 @@ async fn run_ui(mut socket: WebSocket, st: Arc<AppState>) {
                 }
                 Err(broadcast::error::RecvError::Closed) => break,
             },
+            _ = recheck.tick() => {
+                if !still_signed_in(&st, &user) {
+                    let _ = socket.send(Message::Text(log_message("Signed out.", "error"))).await;
+                    break;
+                }
+            }
         }
     }
 }
 
-#[derive(Deserialize)]
-struct UiCommand {
-    action: String,
-    node: Option<String>,
-    relay: Option<u8>,
-    state: Option<String>,
-    level: Option<u8>,
+/// True while the login behind an open socket is still valid and allowed. App sockets stay
+/// open past the 15-minute access token as long as the app's sign-in (its family) is active.
+fn still_signed_in(st: &AppState, user: &AuthUser) -> bool {
+    st.config.role_for(&user.user.email).is_some() && st.db.family_active(&user.family)
 }
 
-// "all", or a node ID of 1-4 hex digits.
-fn valid_node(node: Option<String>) -> Result<String, String> {
-    let node = node.ok_or("Choose a node.")?.to_uppercase();
-    let is_id = (1..=4).contains(&node.len()) && node.chars().all(|c| c.is_ascii_hexdigit());
-    if node == "ALL" { Ok("all".into()) } else if is_id { Ok(node) } else { Err(format!("Unknown node \"{node}\".")) }
-}
-
-fn valid_state(state: Option<String>, allowed: &[&str]) -> Result<String, String> {
-    let state = state.unwrap_or_default();
-    if allowed.contains(&state.as_str()) { Ok(state) } else { Err(format!("Unknown state \"{state}\".")) }
-}
-
-// Checks a browser command, gives it an id and sends it to the ESP32.
-async fn forward_ui_command(st: &AppState, text: &str) -> Result<(), String> {
-    let cmd: UiCommand = serde_json::from_str(text).map_err(|_| "The page sent an unreadable command.")?;
-    let id = st.next_id.fetch_add(1, Ordering::Relaxed);
-
-    let out = match cmd.action.as_str() {
-        "led" => {
-            let state = valid_state(cmd.state, &["on", "off"])?;
-            json!({ "type": "command", "id": id, "action": "led", "state": state })
-        }
-        "relay" => {
-            let node = valid_node(cmd.node)?;
-            let relay = cmd.relay.filter(|r| *r <= 4).ok_or("Relay must be 1-4, or 0 for all.")?;
-            let state = valid_state(cmd.state, &["on", "off", "toggle"])?;
-            json!({ "type": "command", "id": id, "action": "relay", "node": node, "relay": relay, "state": state })
-        }
-        "fan" => {
-            let node = valid_node(cmd.node)?;
-            if node == "all" {
-                return Err("Choose one node for the fan.".into());
-            }
-            if cmd.state.as_deref() == Some("home") {
-                json!({ "type": "command", "id": id, "action": "fan", "node": node, "state": "home" })
-            } else {
-                let level = cmd.level.filter(|l| *l <= 100).ok_or("Fan level must be 0-100.")?;
-                json!({ "type": "command", "id": id, "action": "fan", "node": node, "state": "set", "level": level })
-            }
-        }
-        "curtain" => {
-            let node = valid_node(cmd.node)?;
-            let state = valid_state(cmd.state, &["open", "close", "stop", "learn", "goto"])?;
-            if state == "goto" {
-                let level = cmd.level.filter(|l| *l <= 100).ok_or("Curtain position must be 0-100.")?;
-                json!({ "type": "command", "id": id, "action": "curtain", "node": node, "state": state, "level": level })
-            } else {
-                json!({ "type": "command", "id": id, "action": "curtain", "node": node, "state": state })
-            }
-        }
-        "dim" => {
-            let node = valid_node(cmd.node)?;
-            let state = valid_state(cmd.state, &["set", "next", "on", "off"])?;
-            if state == "set" {
-                let level = cmd.level.filter(|l| *l <= 100).ok_or("Dimmer level must be 0-100.")?;
-                json!({ "type": "command", "id": id, "action": "dim", "node": node, "state": state, "level": level })
-            } else {
-                json!({ "type": "command", "id": id, "action": "dim", "node": node, "state": state })
-            }
-        }
-        "status" => {
-            let node = valid_node(cmd.node)?;
-            json!({ "type": "command", "id": id, "action": "status", "node": node })
-        }
-        "scan" => json!({ "type": "command", "id": id, "action": "scan" }),
-        other => return Err(format!("Unknown action \"{other}\".")),
-    };
-
-    let device = st.device.lock().await;
-    let sent = device.as_ref().is_some_and(|(_, tx)| tx.send(out.to_string()).is_ok());
-    if sent { Ok(()) } else { Err("The ESP32 master is offline, so the command was not sent.".into()) }
+async fn handle_ui_command(st: &AppState, user: &AuthUser, text: &str) -> Result<(), String> {
+    let cmd: api::Command = serde_json::from_str(text).map_err(|_| "The page sent an unreadable command.".to_string())?;
+    // Use the current allowlist role, in case it changed while the socket was open.
+    let role = st.config.role_for(&user.user.email).ok_or("This account is no longer allowed.")?;
+    api::dispatch(st, &user.user.email, role, &cmd, false).await.map(|_| ()).map_err(|e| e.message())
 }
 
 // ---------- ESP32 WebSocket ----------
@@ -369,7 +301,7 @@ async fn device_ws(ws: WebSocketUpgrade, State(st): State<Arc<AppState>>, header
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .is_some_and(|token| constant_time_eq(token.as_bytes(), st.device_token.as_bytes()));
+        .is_some_and(|token| auth::constant_time_eq(token.as_bytes(), st.config.device_token.as_bytes()));
     if !authorized {
         return StatusCode::UNAUTHORIZED.into_response();
     }
@@ -522,6 +454,12 @@ async fn handle_device_message(st: &AppState, text: &str) {
                 log =Some((format!("Scan finished: {} node(s) found.", status.nodes.len()), "info"));
             }
             Some("result") => {
+                // A REST call may be waiting for exactly this result.
+                if let Some(id) = v["id"].as_u64() {
+                    if let Some(waiter) = st.waiters.lock().await.remove(&id) {
+                        let _ = waiter.send(v.clone());
+                    }
+                }
                 let ok = v["ok"].as_bool().unwrap_or(false);
                 if v["action"] == "led" {
                     if ok {

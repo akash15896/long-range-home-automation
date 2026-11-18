@@ -5,34 +5,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Automation · Sign in</title>
 <style>
-  :root { --bg: #f2f5f3; --surface: #fff; --fg: #17201b; --muted: #5d6a63; --line: #d5ddd8; --accent: #11795a; --error: #b3261e; }
+  :root { --bg: #f2f5f3; --surface: #fff; --fg: #17201b; --muted: #5d6a63; --line: #d5ddd8; --accent: #11795a; --error: #b3261e;
+          --btn-bg: #fff; --btn-fg: #1f1f1f; --apple-bg: #000; --apple-fg: #fff; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #0f1412; --surface: #18201c; --fg: #e4ebe7; --muted: #98a69f; --line: #2a3530; --accent: #4cc79a; --error: #ff8a80; color-scheme: dark; }
+    :root { --bg: #0f1412; --surface: #18201c; --fg: #e4ebe7; --muted: #98a69f; --line: #2a3530; --accent: #4cc79a; --error: #ff8a80;
+            --btn-bg: #131314; --btn-fg: #e3e3e3; --apple-bg: #fff; --apple-fg: #000; color-scheme: dark; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg);
          font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; }
-  form { width: 100%; max-width: 340px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  main { width: 100%; max-width: 340px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
          padding: 28px 24px; display: grid; gap: 14px; }
   h1 { margin: 0; font-size: 1.3rem; }
   p { margin: 0; color: var(--muted); font-size: .9rem; }
+  .provider { display: block; text-align: center; padding: 10px; border-radius: 6px; font-weight: 600; text-decoration: none;
+              border: 1px solid var(--line); background: var(--btn-bg); color: var(--btn-fg); }
+  .provider.apple { background: var(--apple-bg); color: var(--apple-fg); border-color: var(--apple-bg); }
+  .provider:hover { filter: brightness(.95); }
+  details { border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+  form { display: grid; gap: 10px; margin-top: 12px; }
   label { font-size: .85rem; font-weight: 600; }
   input { width: 100%; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: 6px;
           background: var(--bg); color: var(--fg); }
-  input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   button { padding: 10px; font: inherit; font-weight: 600; border: 0; border-radius: 6px; background: var(--accent);
            color: #fff; cursor: pointer; }
-  .error { color: var(--error); font-size: .9rem; min-height: 1em; }
+  .error { color: var(--error); font-size: .9rem; }
+  .error:empty { display: none; }
 </style>
 </head>
 <body>
-<form method="post" action="/login">
+<main>
   <h1>Automation</h1>
-  <p>Sign in to control the LoRa master and relays.</p>
-  <label for="password">Password</label>
-  <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+  <p>Sign in to control the lights, fans and curtains.</p>
   <div class="error" role="alert">{{ERROR}}</div>
-  <button type="submit">Sign in</button>
-</form>
+  {{PROVIDERS}}
+  {{PASSWORD}}
+</main>
 </body>
 </html>

@@ -13,6 +13,10 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
+# Writable /var/lib/automation for the user/token database (everything else stays read-only).
+StateDirectory=automation
+StateDirectoryMode=0700
+Environment=AUTOMATION_DB=/var/lib/automation/automation.db
 
 [Install]
 WantedBy=multi-user.target

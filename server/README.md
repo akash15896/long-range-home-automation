@@ -1,23 +1,66 @@
 # Automation server
 
-Rust (axum 0.7, tokio) server. It serves a password-protected control page and relays commands between
-browsers (`/ws/ui`) and the ESP32 LoRa master (`/ws/device`). The HTML pages in `static/` are compiled into the
-binary with `include_str!`, so any page change needs a rebuild.
+Rust (axum 0.7, tokio) server. It serves the control page, a REST API for the mobile app
+([API.md](API.md)), and relays commands to the ESP32 LoRa master (`/ws/device`).
+The HTML pages in `static/` are compiled into the binary with `include_str!`, so page changes need a rebuild.
 
-## Run locally
+| File | Role |
+|---|---|
+| `src/main.rs` | state, routes, browser/app WebSocket, ESP32 WebSocket |
+| `src/auth.rs` | who is calling (cookie / Bearer), web sign-in flows, app tokens, rate limits |
+| `src/oidc.rs` | Google/Apple ID-token verification (JWKS cache), Google code exchange, PKCE |
+| `src/db.rs` | SQLite: users, linked identities, hashed tokens (session / access / refresh) |
+| `src/api.rs` | REST handlers, command validation and roles (shared with the WebSocket) |
+| `src/config.rs` | environment variables, allowlist, roles |
+
+## Sign-in
+
+- **Google** and **Apple** on the web page and in the mobile app. Only emails in `AUTOMATION_ADMINS` /
+  `AUTOMATION_MEMBERS` get in. One person signing in with both providers (same email) gets one account.
+- **Emergency password** (`AUTOMATION_PASSWORD`): admin login for when Google/Apple are unavailable.
+  Rate-limited to 10 tries per 15 minutes per IP. Leave empty to turn it off.
+- Tokens are random and stored only as SHA-256 hashes in SQLite, so restarts keep everyone signed in.
+
+### Google setup (console.cloud.google.com)
+1. Create (or pick) a project. **APIs & Services → OAuth consent screen**: External, app name, your email;
+   scopes `openid`, `email`, `profile`. While the app is in "Testing", add every allowed person as a test user
+   (or publish it; these scopes need no Google review).
+2. **Credentials → Create credentials → OAuth client ID → Web application**.
+   Authorized redirect URI: `https://<your host>/auth/google/callback`.
+   Put the client ID and secret in `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+3. For the mobile app: create an **iOS** client (bundle ID) and/or an **Android** client (package name + SHA-1),
+   and list their client IDs in `GOOGLE_APP_CLIENT_IDS`.
+
+### Apple setup (developer.apple.com → Certificates, Identifiers & Profiles)
+1. **Identifiers → App IDs**: your iOS app's bundle ID with the *Sign in with Apple* capability.
+   List it in `APPLE_BUNDLE_IDS` (that is the audience of the app's tokens).
+2. **Identifiers → Services IDs** (for the web): e.g. `com.yourname.automation.web`. Enable *Sign in with Apple*,
+   configure it with the App ID above as primary, domain `<your host>` and return URL
+   `https://<your host>/auth/apple/callback`. Put the Services ID in `APPLE_SERVICES_ID`.
+3. No `.p8` key is needed: the server checks the ID token Apple posts back (signature, audience, nonce) and
+   never calls Apple's token endpoint.
+4. "Hide My Email" users arrive as `…@privaterelay.appleid.com`: add that address to the allowlist, or have them
+   share their real email.
+
+## Run locally (Docker, no Rust install needed)
 ```bash
-export AUTOMATION_PASSWORD=dev AUTOMATION_DEVICE_TOKEN=dev-token \
-       AUTOMATION_ORIGIN=http://localhost:3000 AUTOMATION_BIND=127.0.0.1:3000
-cargo run --release
+docker run --rm -it -p 3000:3000 -v "$PWD:/src" -w /src -e CARGO_TARGET_DIR=/tmp/t \
+  -e AUTOMATION_BIND=0.0.0.0:3000 -e AUTOMATION_ORIGIN=http://localhost:3000 \
+  -e AUTOMATION_DEVICE_TOKEN=dev-token -e AUTOMATION_PASSWORD=dev -e AUTOMATION_DB=/tmp/dev.db \
+  rust:1-bookworm cargo run
 ```
-The session cookie is `Secure`, so login only sticks over HTTPS (or on browsers that treat localhost as secure).
+`cargo test` runs the unit tests (tokens, refresh rotation and reuse detection, nonce/claim checks, PKCE,
+roles, command validation). The session cookie is `Secure`, so browsers keep it only over HTTPS (or on localhost).
 
 ## Deploy (Raspberry Pi, Debian aarch64)
-1. Copy `Cargo.toml`, `Cargo.lock`, `src/`, `static/` to `~/automation` on the Pi (back up the old files first).
-2. `cd ~/automation && ~/.cargo/bin/cargo build --release` (clean build ~17 min on 905 MB RAM; add swap if it is OOM-killed).
-3. First time only: `sudo install -m 600 automation.env /etc/automation/automation.env` (from
-   `deploy/automation.env.example`), `sudo cp deploy/automation.service /etc/systemd/system/`,
-   `sudo systemctl enable --now automation`.
-4. `sudo systemctl restart automation` and watch `sudo journalctl -u automation -f`.
+1. Back up the old build: `cp -a ~/automation/src ~/automation/static ~/automation/Cargo.* ~/automation/backup-$(date +%F)/`.
+2. Copy `Cargo.toml`, `Cargo.lock`, `src/`, `static/` to `~/automation`.
+3. `cd ~/automation && ~/.cargo/bin/cargo build --release` (new dependencies: a first build takes a long time on
+   905 MB RAM; run it with `-j 2` if it is killed for lack of memory).
+4. Add the new settings to `/etc/automation/automation.env` (see `deploy/automation.env.example`), and install the
+   updated unit: `sudo cp deploy/automation.service /etc/systemd/system/ && sudo systemctl daemon-reload`.
+5. `sudo systemctl restart automation` and watch `sudo journalctl -u automation -f`. The first lines list the
+   sign-in methods that are on.
 
+Everyone who was signed in with the old in-memory sessions must sign in again once.
 A Cloudflare tunnel maps the public hostname to `http://localhost:3000`.

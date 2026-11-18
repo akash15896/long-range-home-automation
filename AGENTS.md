@@ -97,8 +97,16 @@ curtain, dim, status, scan) plus `server/static/index.html`. Keep the enum value
 
 ## Automation server (`server/`)
 
-- axum 0.7 + tokio. Routes: `/`, `/login`, `/logout`, `/api/session`, `/ws/ui` (session cookie + Origin check),
-  `/ws/device` (Bearer `AUTOMATION_DEVICE_TOKEN`). Env vars: see `server/deploy/automation.env.example`.
+- axum 0.7 + tokio + SQLite (rusqlite, bundled). Module map and provider setup: `server/README.md`.
+  REST/WebSocket contract for the mobile app: `server/API.md`. Env vars: `server/deploy/automation.env.example`.
+- Auth: Google/Apple sign-in (web + mobile ID tokens) for allowlisted emails with roles admin/member, plus an
+  emergency password (admin). Web = `automation_session` cookie (SameSite=Strict; mutating requests need our
+  Origin). App = Bearer access token (15 min) + rotating refresh token (60 days, reuse = family revoked).
+  Tokens are stored hashed. Admin-only actions live in `api::required_role`, enforced for REST and WebSocket.
+- When adding an action: update `api::build` + `api::required_role`, the master firmware, `static/index.html`,
+  and `API.md`.
+- Verify without a Rust install: `docker run --rm -v "<repo>/server:/src" -w /src rust:1-bookworm cargo test`
+  (and `cargo clippy --all-targets`).
 - Deployed on the Pi as systemd service `automation` from `~/automation` (a plain copy, not a git checkout),
   listening on 127.0.0.1:3000; Cloudflare tunnel maps the public hostname to it.
 - Deploy flow (**ask first**): back up the Pi's `src/` and `static/`, copy the changed files to `~/automation`,

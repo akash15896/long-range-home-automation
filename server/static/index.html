@@ -57,6 +57,7 @@
   .meter { height: 8px; border-radius: 999px; background: var(--off); overflow: hidden; }
   .meter > div { height: 100%; background: var(--accent); transition: width .4s ease; }
   button.stop { border-color: var(--error); color: var(--error); font-weight: 600; }
+  [hidden] { display: none !important; }
   .log { font-family: var(--mono); font-size: .8rem; max-height: 220px; overflow-y: auto; display: grid; gap: 2px; }
   .log .error { color: var(--error); }
   .log time { color: var(--muted); margin-right: 8px; }
@@ -68,6 +69,7 @@
   <header>
     <h1>Automation</h1>
     <div class="head-right">
+      <span id="who" class="meta"></span>
       <span id="link" class="pill">Connecting…</span>
       <form method="post" action="/logout"><button type="submit">Sign out</button></form>
     </div>
@@ -78,7 +80,7 @@
       <h2 id="master-title">ESP32 master</h2>
       <span id="master" class="pill">Unknown</span>
     </div>
-    <div class="row">
+    <div class="row" id="led-row">
       <div>LED on GPIO 4: <strong id="led-state">–</strong></div>
       <div class="actions">
         <button id="led-on">LED on</button>
@@ -106,6 +108,8 @@
   const $ = (id) => document.getElementById(id);
   let ws = null;
   let state = { master_online: false, led: null, nodes: [] };
+  let me = null; // { email, name, role } from the server; setup controls are for admins only
+  const isAdmin = () => me !== null && me.role === "admin";
 
   function log(text, level) {
     const line = document.createElement("div");
@@ -133,6 +137,8 @@
     setPill($("master"), online, "Online", "Offline");
     $("led-state").textContent = state.led === null ? "–" : state.led ? "ON" : "OFF";
     for (const id of ["led-on", "led-off", "scan", "refresh"]) $(id).disabled = !online;
+    $("led-row").hidden = !isAdmin();
+    $("scan").hidden = !isAdmin();
 
     const box = $("nodes");
     box.replaceChildren();
@@ -282,7 +288,7 @@
     const actions = document.createElement("div");
     actions.className = "actions";
     for (const [text, cmd] of [["Off", { level: 0 }], ["50%", { level: 50 }], ["Full", { level: 100 }],
-                               ...(canHome ? [["Re-home", { state: "home" }]] : [])]) {
+                               ...(canHome && isAdmin() ? [["Re-home", { state: "home" }]] : [])]) {
       const b = document.createElement("button");
       b.textContent = text;
       b.disabled = !online;
@@ -338,8 +344,9 @@
 
     const actions = document.createElement("div");
     actions.className = "actions";
-    for (const [text, state, title] of [["Open", "open"], ["Stop", "stop"], ["Close", "close"],
-                                        ["Learn travel", "learn", "Run closed → open once to measure the travel"]]) {
+    const curtainButtons = [["Open", "open"], ["Stop", "stop"], ["Close", "close"]];
+    if (isAdmin()) curtainButtons.push(["Learn travel", "learn", "Run closed → open once to measure the travel"]);
+    for (const [text, state, title] of curtainButtons) {
       const b = document.createElement("button");
       b.textContent = text;
       b.disabled = !online;
@@ -366,7 +373,12 @@
     ws.onopen = () => setPill($("link"), true, "Server connected", "");
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
-      if (msg.type === "state") { state = msg; render(); }
+      if (msg.type === "me") {
+        me = msg;
+        $("who").textContent = (me.name || me.email) + (me.role === "admin" ? " · admin" : "");
+        render();
+      }
+      else if (msg.type === "state") { state = msg; render(); }
       else if (msg.type === "log") log(msg.text, msg.level);
     };
     ws.onclose = async () => {

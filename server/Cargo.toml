@@ -1,6 +1,6 @@
 [package]
 name = "automation-server"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
@@ -9,3 +9,13 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand = "0.8"
+# Sign-in: verify Google/Apple ID tokens, talk to Google's token endpoint, store users and tokens.
+jsonwebtoken = "9"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+sha2 = "0.10"
+base64 = "0.22"
+
+[profile.release]
+# Keeps the Raspberry Pi (905 MB RAM) from running out of memory while linking.
+codegen-units = 4
