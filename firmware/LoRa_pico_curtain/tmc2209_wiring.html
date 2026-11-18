@@ -1,0 +1,234 @@
+<title>Curtain TMC2209 Wiring</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; the schematic scrolls sideways in its own frame on phones. */
+:root {
+  --bg: #f6f7f5; --panel: #ffffff; --fg: #1d2420; --muted: #5d6a63; --line: #d5dbd7;
+  --accent: #0f6c5a; --sig: #2563c9; --pwr: #c43d2b; --gnd: #3b4540; --coilA: #2f8f3a; --coilB: #c27a12;
+  --warn-bg: #fff4e0; --warn-fg: #7a4a00;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121614; --panel: #1a201d; --fg: #e4ebe7; --muted: #9aa8a0; --line: #2e3833;
+  --accent: #4cc2a6; --sig: #6ea3ff; --pwr: #ff7a66; --gnd: #b9c4be; --coilA: #6fd17a; --coilB: #f0ad48;
+  --warn-bg: #33270f; --warn-fg: #f3cf8f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121614; --panel: #1a201d; --fg: #e4ebe7; --muted: #9aa8a0; --line: #2e3833;
+  --accent: #4cc2a6; --sig: #6ea3ff; --pwr: #ff7a66; --gnd: #b9c4be; --coilA: #6fd17a; --coilB: #f0ad48;
+  --warn-bg: #33270f; --warn-fg: #f3cf8f; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-size: 28px; line-height: 1.2; margin: 0; font-weight: 600; text-wrap: balance; }
+h2 { font-size: 19px; margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.lead { color: var(--muted); }
+section { display: grid; gap: 12px; min-width: 0; }
+.figure { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+.figure svg { display: block; min-width: 820px; width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 22px; height: 3px; border-radius: 2px; display: inline-block; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 500; }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+ol, ul { margin: 0; padding-left: 22px; display: grid; gap: 6px; max-width: 72ch; }
+.warn { background: var(--warn-bg); color: var(--warn-fg); border-radius: 8px; padding: 12px 14px; }
+.warn strong { color: inherit; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+.two > * { min-width: 0; }
+svg text { font-family: var(--mono); fill: var(--fg); }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Curtain node E26D · Pico 2 · driver swap</div>
+  <h1>TMC2209 V2.1 wiring for the curtain node</h1>
+  <p class="lead">STEP, DIR and EN use the same pins as the firmware (<code>PUL_PIN 2</code>, <code>DIR_PIN 3</code>, <code>EN_PIN 4</code>). The limit switches (OPEN GP11, CLOSED GP10) and the Ra-02 (GP16–21) stay as they are.</p>
+</header>
+
+<section>
+  <h2>Schematic</h2>
+  <div class="figure">
+  <svg viewBox="0 0 900 470" role="img" aria-label="Wiring from the Pico 2 to the TMC2209 module, motor supply and stepper motor">
+    <!-- Pico -->
+    <rect x="40" y="70" width="190" height="370" rx="8" fill="var(--panel)" stroke="var(--accent)" stroke-width="2"/>
+    <text x="135" y="98" text-anchor="middle" font-size="15" font-weight="500">Pico 2</text>
+    <text x="135" y="116" text-anchor="middle" font-size="11" fill="var(--muted)" style="fill:var(--muted)">pin = physical pin</text>
+    <g font-size="12" text-anchor="end">
+      <text x="220" y="124">GP4 · pin 6</text>
+      <text x="220" y="174">3V3 OUT · pin 36</text>
+      <text x="220" y="224">GND · pin 38</text>
+      <text x="220" y="364">GP2 · pin 4</text>
+      <text x="220" y="404">GP3 · pin 5</text>
+    </g>
+
+    <!-- TMC2209 -->
+    <rect x="430" y="70" width="170" height="370" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"/>
+    <text x="515" y="94" text-anchor="middle" font-size="14" font-weight="500">TMC2209 V2.1</text>
+    <rect x="490" y="250" width="50" height="50" rx="3" fill="var(--line)" stroke="var(--muted)"/>
+    <text x="515" y="279" text-anchor="middle" font-size="10" style="fill:var(--muted)">chip</text>
+    <circle cx="515" cy="420" r="9" fill="var(--line)" stroke="var(--muted)"/>
+    <line x1="509" y1="420" x2="521" y2="420" stroke="var(--muted)" stroke-width="2"/>
+    <text x="530" y="424" font-size="10" style="fill:var(--muted)">Vref pot</text>
+    <g font-size="12">
+      <text x="440" y="124">EN</text><text x="440" y="164">MS1</text><text x="440" y="204">MS2</text>
+      <text x="440" y="244">RX</text><text x="440" y="284">TX</text><text x="440" y="324">CLK</text>
+      <text x="440" y="364">STEP</text><text x="440" y="404">DIR</text>
+    </g>
+    <g font-size="12" text-anchor="end">
+      <text x="590" y="124">VM</text><text x="590" y="164">GND</text><text x="590" y="204">B2</text>
+      <text x="590" y="244">B1</text><text x="590" y="284">A1</text><text x="590" y="324">A2</text>
+      <text x="590" y="364">VIO</text><text x="590" y="404">GND</text>
+    </g>
+
+    <!-- signal wires -->
+    <g stroke="var(--sig)" stroke-width="2.5" fill="none">
+      <line x1="230" y1="120" x2="430" y2="120"/>
+      <line x1="230" y1="360" x2="430" y2="360"/>
+      <line x1="230" y1="400" x2="430" y2="400"/>
+    </g>
+    <!-- 3V3 + pull-up -->
+    <g stroke="var(--pwr)" stroke-width="2.5" fill="none">
+      <line x1="230" y1="170" x2="330" y2="170"/>
+      <line x1="330" y1="170" x2="330" y2="158"/>
+      <line x1="330" y1="132" x2="330" y2="120"/>
+    </g>
+    <rect x="322" y="132" width="16" height="26" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"/>
+    <text x="344" y="150" font-size="11">10 k</text>
+    <circle cx="330" cy="120" r="4" fill="var(--sig)"/>
+    <text x="262" y="188" font-size="10" style="fill:var(--muted)">3V3 net</text>
+    <!-- GND to MS1/MS2 -->
+    <g stroke="var(--gnd)" stroke-width="2.5" fill="none">
+      <line x1="230" y1="220" x2="385" y2="220"/>
+      <line x1="385" y1="160" x2="385" y2="220"/>
+      <line x1="385" y1="160" x2="430" y2="160"/>
+      <line x1="385" y1="200" x2="430" y2="200"/>
+    </g>
+    <circle cx="385" cy="200" r="4" fill="var(--gnd)"/>
+    <text x="262" y="238" font-size="10" style="fill:var(--muted)">GND net · 1/8 step</text>
+    <!-- not connected -->
+    <g stroke="var(--muted)" stroke-width="1.5">
+      <line x1="414" y1="234" x2="424" y2="246"/><line x1="424" y1="234" x2="414" y2="246"/>
+      <line x1="414" y1="274" x2="424" y2="286"/><line x1="424" y1="274" x2="414" y2="286"/>
+      <line x1="414" y1="314" x2="424" y2="326"/><line x1="424" y1="314" x2="414" y2="326"/>
+    </g>
+    <g font-size="11" text-anchor="end" style="fill:var(--muted)">
+      <text x="406" y="244">leave open</text><text x="406" y="284">leave open</text><text x="406" y="324">leave open</text>
+    </g>
+
+    <!-- motor supply -->
+    <g stroke="var(--pwr)" stroke-width="2.5" fill="none"><line x1="600" y1="120" x2="760" y2="120"/><line x1="680" y1="120" x2="680" y2="134"/></g>
+    <g stroke="var(--gnd)" stroke-width="2.5" fill="none"><line x1="600" y1="160" x2="760" y2="160"/><line x1="680" y1="146" x2="680" y2="160"/></g>
+    <line x1="668" y1="134" x2="692" y2="134" stroke="var(--fg)" stroke-width="2.5"/>
+    <line x1="668" y1="146" x2="692" y2="146" stroke="var(--fg)" stroke-width="2.5"/>
+    <text x="662" y="132" font-size="11" text-anchor="end">+</text>
+    <circle cx="680" cy="120" r="4" fill="var(--pwr)"/><circle cx="680" cy="160" r="4" fill="var(--gnd)"/>
+    <text x="680" y="104" font-size="11" text-anchor="middle">100–470 µF ≥35 V</text>
+    <rect x="760" y="100" width="120" height="80" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"/>
+    <text x="820" y="124" font-size="12" text-anchor="middle">Motor supply</text>
+    <text x="820" y="142" font-size="12" text-anchor="middle">12–24 V</text>
+    <text x="772" y="124" font-size="12" style="fill:var(--pwr)">+</text>
+    <text x="772" y="164" font-size="12">−</text>
+    <text x="820" y="198" font-size="10" text-anchor="middle" style="fill:var(--muted)">− also to Pico GND</text>
+
+    <!-- motor -->
+    <g stroke-width="2.5" fill="none">
+      <polyline points="600,200 700,200 700,270 760,270" stroke="var(--coilB)"/>
+      <polyline points="600,240 690,240 690,290 760,290" stroke="var(--coilB)"/>
+      <polyline points="600,280 680,280 680,310 760,310" stroke="var(--coilA)"/>
+      <polyline points="600,320 680,320 680,330 760,330" stroke="var(--coilA)"/>
+    </g>
+    <circle cx="815" cy="300" r="52" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.5"/>
+    <text x="815" y="296" font-size="12" text-anchor="middle">stepper</text>
+    <text x="815" y="312" font-size="11" text-anchor="middle" style="fill:var(--muted)">1.2 A</text>
+    <text x="715" y="262" font-size="11" style="fill:var(--coilB)">coil B</text>
+    <text x="715" y="350" font-size="11" style="fill:var(--coilA)">coil A</text>
+
+    <!-- VIO / logic GND flags -->
+    <g stroke-width="2.5" fill="none">
+      <line x1="600" y1="360" x2="640" y2="360" stroke="var(--pwr)"/>
+      <line x1="600" y1="400" x2="640" y2="400" stroke="var(--gnd)"/>
+    </g>
+    <rect x="640" y="348" width="150" height="24" rx="12" fill="var(--panel)" stroke="var(--pwr)" stroke-width="1.5"/>
+    <text x="715" y="364" font-size="11" text-anchor="middle">3V3 · Pico pin 36</text>
+    <rect x="640" y="388" width="150" height="24" rx="12" fill="var(--panel)" stroke="var(--gnd)" stroke-width="1.5"/>
+    <text x="715" y="404" font-size="11" text-anchor="middle">GND · Pico pin 38</text>
+  </svg>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--sig)"></i>signal</span>
+    <span><i style="background:var(--pwr)"></i>supply / 3V3</span>
+    <span><i style="background:var(--gnd)"></i>ground</span>
+    <span><i style="background:var(--coilA)"></i>coil A</span>
+    <span><i style="background:var(--coilB)"></i>coil B</span>
+  </div>
+  <p class="lead">Clone V2.1 boards don't all print the pins in this order. Wire by the name printed on your board, not by position.</p>
+</section>
+
+<section>
+  <h2>Connections</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>TMC2209 pin</th><th>Goes to</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">EN</td><td>GP4 (pin 6)</td><td>Active LOW. 10 kΩ from GP4 to 3V3 keeps the motor off while the Pico boots.</td></tr>
+      <tr><td class="mono">MS1, MS2</td><td>GND</td><td>Both LOW = 1/8 microstep, the same as the old driver, so the learned 40,340 steps stay valid.</td></tr>
+      <tr><td class="mono">RX, TX, CLK</td><td>not connected</td><td>UART is not used. CLK open = internal clock.</td></tr>
+      <tr><td class="mono">STEP</td><td>GP2 (pin 4)</td><td></td></tr>
+      <tr><td class="mono">DIR</td><td>GP3 (pin 5)</td><td>Wrong direction: swap the two wires of one coil, or set <code>DIR_REVERSE</code>.</td></tr>
+      <tr><td class="mono">VM</td><td>Motor supply +</td><td>4.75–28 V. Capacitor right at the pins.</td></tr>
+      <tr><td class="mono">GND (VM side)</td><td>Motor supply −</td><td>Also join the supply − to the Pico GND.</td></tr>
+      <tr><td class="mono">A1, A2</td><td>one motor coil</td><td>Find the pairs with a multimeter: a few ohms between the two wires of one coil.</td></tr>
+      <tr><td class="mono">B1, B2</td><td>the other coil</td><td></td></tr>
+      <tr><td class="mono">VIO</td><td>3V3 OUT (pin 36)</td><td>Logic level. Sets the signal voltage to 3.3 V.</td></tr>
+      <tr><td class="mono">GND (logic side)</td><td>GND (pin 38)</td><td></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="two">
+  <div style="display:grid;gap:12px">
+    <h2>Setting Vref before the module goes on the board</h2>
+    <p>The pot keeps its setting when the power is off, so you can set it on its own and then plug it in.</p>
+    <ol>
+      <li>Push the module into a breadboard, or use female jumper wires on its pins. Nothing else on it, <strong>no motor</strong>.</li>
+      <li>Connect VIO to a 3.3 V source (Pico 3V3 OUT on USB) and its GND to that ground.</li>
+      <li>Connect VM and its GND to the motor supply. Many modules feed the pot from the chip's own regulator, which runs from VM, so the reading can be 0 V without VM.</li>
+      <li>Measure DC volts from the metal top of the pot to GND. Turn it slowly with a plastic or insulated screwdriver.</li>
+      <li>Set about <strong>1.4 V</strong> (≈ 1.0 A RMS). Power everything off.</li>
+      <li>Plug the module in (check the orientation: EN to EN, VM to VM), fit the heatsink, and only then connect the motor and power up.</li>
+    </ol>
+    <p class="lead">If you'll want to adjust it later, solder female header sockets on the board so the module pulls out.</p>
+  </div>
+  <div style="display:grid;gap:12px">
+    <h2>Vref to motor current</h2>
+    <p class="lead">For the usual 0.11 Ω sense resistors: I<sub>RMS</sub> ≈ 0.71 × Vref.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Vref</th><th>Current (RMS)</th><th></th></tr></thead>
+      <tbody>
+        <tr><td class="mono">1.10 V</td><td>0.78 A</td><td>try this if the motor gets hot</td></tr>
+        <tr><td class="mono">1.40 V</td><td>1.00 A</td><td><strong>start here</strong></td></tr>
+        <tr><td class="mono">1.70 V</td><td>1.20 A</td><td>motor's rating, runs warm</td></tr>
+      </tbody>
+    </table></div>
+    <p class="lead">Check the resistors marked R100 or R110 next to the chip. With R100 (0.1 Ω) the current is about 0.77 × Vref, so use 1.3 V for 1.0 A.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Before the first move</h2>
+  <div class="warn"><strong>Never plug or unplug the motor while VM is powered.</strong> It destroys the driver.</div>
+  <ol>
+    <li>Upload the sketch with <code>DRIVER_STEPSTICK 1</code> to the Pico on COM6.</li>
+    <li>Run <code>watch</code> and press each switch lever to check the switches still read correctly.</li>
+    <li>With the motor supply on, send <code>open</code> so it re-homes on the OPEN switch.</li>
+    <li>Then try <code>goto 50</code>, <code>close</code> and <code>open</code>. <code>open</code> should end at 40340 again.</li>
+  </ol>
+</section>
+</div>

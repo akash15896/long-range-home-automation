@@ -1,0 +1,18 @@
+[Unit]
+Description=Automation server (automation.akashmahor.me)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=akash
+EnvironmentFile=/etc/automation/automation.env
+ExecStart=/home/akash/automation/target/release/automation-server
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

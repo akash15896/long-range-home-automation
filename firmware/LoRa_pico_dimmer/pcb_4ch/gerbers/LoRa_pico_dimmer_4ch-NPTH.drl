@@ -1,0 +1,15 @@
+M48
+; LoRa Pico dimmer 4ch rev A, non-plated holes
+; #@! TF.FileFunction,NonPlated,1,2,NPTH
+FMAT,2
+METRIC,TZ
+T1C3.200
+%
+G90
+G05
+T1
+X3.200Y3.200
+X104.800Y3.200
+X3.200Y80.800
+X104.800Y80.800
+M30

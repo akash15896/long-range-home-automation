@@ -1,0 +1,33 @@
+# --- Secrets (never commit) ---
+firmware/**/secrets.h
+*.env
+!*.env.example
+
+# --- Local, machine-specific notes (LAN addresses, SSH, ports) ---
+LOCAL_NOTES.md
+
+# --- Build output ---
+/build/
+server/target/
+firmware/**/build/
+*.elf
+*.uf2
+*.bin
+*.hex
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.whl
+.venv/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Claude Code personal settings ---
+.claude/settings.local.json

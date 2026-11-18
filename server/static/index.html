@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automation</title>
+<style>
+  /* Layout: status bar, master card, one card per node, activity log */
+  :root {
+    --bg: #f2f5f3; --surface: #fff; --fg: #17201b; --muted: #5d6a63; --line: #d5ddd8;
+    --accent: #11795a; --on: #11795a; --off: #c4ccc8; --error: #b3261e; --warn: #9a6400;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1412; --surface: #18201c; --fg: #e4ebe7; --muted: #98a69f; --line: #2a3530;
+            --accent: #4cc79a; --on: #3fb98c; --off: #3a4741; --error: #ff8a80; --warn: #f0b35a; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+         padding: 20px 16px 48px; }
+  main { max-width: 860px; margin: 0 auto; display: grid; gap: 18px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+  h1 { margin: 0; font-size: 1.4rem; }
+  h2 { margin: 0; font-size: 1rem; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; padding: 3px 10px;
+          border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .pill.ok { color: var(--on); } .pill.ok::before { background: var(--on); }
+  .pill.bad { color: var(--error); } .pill.bad::before { background: var(--error); }
+  .head-right { display: flex; gap: 10px; align-items: center; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+  .meta { color: var(--muted); font-size: .85rem; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  button { font: inherit; font-size: .9rem; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line);
+           background: var(--bg); color: var(--fg); cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .relays { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .switch { display: grid; gap: 4px; justify-items: center; padding: 10px 6px; border-radius: 8px; border: 1px solid var(--line);
+            background: var(--bg); }
+  .switch.on { border-color: var(--on); }
+  .switch .name { font-size: .8rem; color: var(--muted); }
+  .switch .state { font-weight: 700; }
+  .switch.on .state { color: var(--on); }
+  .switch.pending { opacity: .6; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .nodes { display: grid; gap: 12px; }
+  .empty { color: var(--muted); }
+  .chip { font-size: .75rem; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+  .chip.down { color: var(--error); }
+  .fan { display: grid; gap: 8px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+  .fan .level { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .fan input[type=range] { width: 100%; accent-color: var(--accent); }
+  .fan .actions button { padding: 5px 10px; font-size: .85rem; }
+  .chip.busy { color: var(--warn); }
+  .meter { height: 8px; border-radius: 999px; background: var(--off); overflow: hidden; }
+  .meter > div { height: 100%; background: var(--accent); transition: width .4s ease; }
+  button.stop { border-color: var(--error); color: var(--error); font-weight: 600; }
+  .log { font-family: var(--mono); font-size: .8rem; max-height: 220px; overflow-y: auto; display: grid; gap: 2px; }
+  .log .error { color: var(--error); }
+  .log time { color: var(--muted); margin-right: 8px; }
+  @media (max-width: 480px) { .relays { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Automation</h1>
+    <div class="head-right">
+      <span id="link" class="pill">Connecting…</span>
+      <form method="post" action="/logout"><button type="submit">Sign out</button></form>
+    </div>
+  </header>
+
+  <section class="card" aria-labelledby="master-title">
+    <div class="row">
+      <h2 id="master-title">ESP32 master</h2>
+      <span id="master" class="pill">Unknown</span>
+    </div>
+    <div class="row">
+      <div>LED on GPIO 4: <strong id="led-state">–</strong></div>
+      <div class="actions">
+        <button id="led-on">LED on</button>
+        <button id="led-off">LED off</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="meta">Scan finds nodes and reads their state. Takes up to 30 s.</div>
+      <div class="actions">
+        <button id="scan">Scan for nodes</button>
+        <button id="refresh">Refresh</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="nodes" id="nodes" aria-label="Nodes"></section>
+
+  <section class="card" aria-labelledby="log-title">
+    <h2 id="log-title">Activity</h2>
+    <div class="log" id="log" aria-live="polite"></div>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let ws = null;
+  let state = { master_online: false, led: null, nodes: [] };
+
+  function log(text, level) {
+    const line = document.createElement("div");
+    if (level === "error") line.className = "error";
+    const t = document.createElement("time");
+    t.textContent = new Date().toLocaleTimeString();
+    line.append(t, text);
+    $("log").prepend(line);
+    while ($("log").children.length > 50) $("log").lastChild.remove();
+  }
+
+  function send(cmd) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) { log("Not connected to the server.", "error"); return false; }
+    ws.send(JSON.stringify(cmd));
+    return true;
+  }
+
+  function setPill(el, ok, okText, badText) {
+    el.className = "pill " + (ok ? "ok" : "bad");
+    el.textContent = ok ? okText : badText;
+  }
+
+  function render() {
+    const online = state.master_online;
+    setPill($("master"), online, "Online", "Offline");
+    $("led-state").textContent = state.led === null ? "–" : state.led ? "ON" : "OFF";
+    for (const id of ["led-on", "led-off", "scan", "refresh"]) $(id).disabled = !online;
+
+    const box = $("nodes");
+    box.replaceChildren();
+    if (state.nodes.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "card empty";
+      empty.textContent = online ? "No nodes yet. Press \"Scan for nodes\"." : "Waiting for the ESP32 master to connect.";
+      box.append(empty);
+      return;
+    }
+    for (const n of state.nodes) box.append(nodeCard(n, online));
+  }
+
+  function nodeCard(n, online) {
+    const card = document.createElement("article");
+    card.className = "card";
+    const head = document.createElement("div");
+    head.className = "row";
+    const title = document.createElement("h2");
+    title.textContent = "Node " + n.id;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const parts = [];
+    if (n.rssi !== null) parts.push(n.rssi + " dBm");
+    if (n.snr !== null) parts.push("SNR " + n.snr.toFixed(1) + " dB");
+    meta.textContent = parts.join(" · ");
+    if (!n.reachable) {
+      const chip = document.createElement("span");
+      chip.className = "chip down";
+      chip.textContent = "Not answering";
+      meta.append(" ", chip);
+    }
+    head.append(title, meta);
+
+    if (n.curtain) {
+      card.append(head, curtainControl(n, online));
+      return card;
+    }
+    if (n.dimmer) {
+      // Dimmer nodes have no relays: channel 1 is the light, channel 2 the fan.
+      card.append(head, dimmerControl(n, online));
+      if (n.fan !== null && n.fan !== undefined) card.append(fanControl(n, online, false));
+      return card;
+    }
+
+    const relays = document.createElement("div");
+    relays.className = "relays";
+    n.relays.forEach((on, i) => {
+      const b = document.createElement("button");
+      b.className = "switch" + (on ? " on" : "");
+      b.disabled = !online;
+      b.setAttribute("aria-pressed", on);
+      b.innerHTML = `<span class="name">Relay ${i + 1}</span><span class="state">${on ? "ON" : "OFF"}</span>`;
+      b.onclick = () => {
+        if (send({ action: "relay", node: n.id, relay: i + 1, state: on ? "off" : "on" })) b.classList.add("pending");
+      };
+      relays.append(b);
+    });
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    for (const [label, s] of [["All on", "on"], ["All off", "off"]]) {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.disabled = !online;
+      b.onclick = () => send({ action: "relay", node: n.id, relay: 0, state: s });
+      actions.append(b);
+    }
+    card.append(head, relays, actions);
+    if (n.fan !== null && n.fan !== undefined) card.append(fanControl(n, online));
+    return card;
+  }
+
+  function dimmerControl(n, online) {
+    const d = n.dimmer;
+    const box = document.createElement("div");
+    box.className = "fan";
+    const head = document.createElement("div");
+    head.className = "row";
+    const label = document.createElement("label");
+    label.htmlFor = "dim-" + n.id;
+    const level = document.createElement("span");
+    level.className = "level";
+    level.textContent = d.level === 0 ? "OFF" : d.level + "%";
+    label.append("Light: ", level);
+    const chips = [];
+    if (d.fading) chips.push(["Fading…", "busy"]);
+    if (d.mains === false) chips.push(["No mains at the dimmer", "down"]);
+    for (const [text, cls] of chips) {
+      const chip = document.createElement("span");
+      chip.className = "chip " + cls;
+      chip.textContent = text;
+      label.append(" ", chip);
+    }
+    head.append(label);
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.id = "dim-" + n.id;
+    slider.min = 0; slider.max = 100; slider.step = 5;
+    slider.value = d.level;
+    slider.disabled = !online;
+    slider.oninput = () => { level.textContent = slider.value + "%"; };
+    slider.onchange = () => send({ action: "dim", node: n.id, state: "set", level: Number(slider.value) });
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    for (const [text, state] of [["On", "on"], ["Off", "off"], ["Next level", "next"]]) {
+      const b = document.createElement("button");
+      b.textContent = text;
+      b.disabled = !online;
+      b.onclick = () => send({ action: "dim", node: n.id, state });
+      actions.append(b);
+    }
+    box.append(head, slider, actions);
+    return box;
+  }
+
+  function fanControl(n, online, canHome = true) {
+    const box = document.createElement("div");
+    box.className = "fan";
+    const head = document.createElement("div");
+    head.className = "row";
+    const label = document.createElement("label");
+    label.htmlFor = "fan-" + n.id;
+    const level = document.createElement("span");
+    level.className = "level";
+    level.textContent = n.fan + "%";
+    label.append("Ceiling fan: ", level);
+    if (n.fan_homing) {
+      const chip = document.createElement("span");
+      chip.className = "chip busy";
+      chip.textContent = "Finding OFF…";
+      label.append(" ", chip);
+    }
+    head.append(label);
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.id = "fan-" + n.id;
+    slider.min = 0; slider.max = 100; slider.step = 5;
+    slider.value = n.fan;
+    slider.disabled = !online;
+    slider.oninput = () => { level.textContent = slider.value + "%"; };
+    slider.onchange = () => send({ action: "fan", node: n.id, level: Number(slider.value) });
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    for (const [text, cmd] of [["Off", { level: 0 }], ["50%", { level: 50 }], ["Full", { level: 100 }],
+                               ...(canHome ? [["Re-home", { state: "home" }]] : [])]) {
+      const b = document.createElement("button");
+      b.textContent = text;
+      b.disabled = !online;
+      if (cmd.state) b.title = "Turn to OFF to recalibrate, then return to the current level";
+      b.onclick = () => send({ action: "fan", node: n.id, ...cmd });
+      actions.append(b);
+    }
+    box.append(head, slider, actions);
+    return box;
+  }
+
+  function curtainControl(n, online) {
+    const c = n.curtain;
+    const box = document.createElement("div");
+    box.className = "fan";
+    const head = document.createElement("div");
+    head.className = "row";
+    const label = document.createElement("label");
+    label.htmlFor = "curtain-" + n.id;
+    const pos = document.createElement("span");
+    pos.className = "level";
+    pos.textContent = c.position === null || c.position === undefined ? "unknown" : c.position + "% open";
+    label.append("Curtain: ", pos);
+    const chips = [];
+    if (c.learning) chips.push(["Learning travel…", "busy"]);
+    else if (c.moving) chips.push(["Moving…", "busy"]);
+    if (c.fault) chips.push(["Fault: check the node's USB serial \"info\"", "down"]);
+    if (!c.learned) chips.push(["Travel not learned", "busy"]);
+    for (const [text, cls] of chips) {
+      const chip = document.createElement("span");
+      chip.className = "chip " + cls;
+      chip.textContent = text;
+      label.append(" ", chip);
+    }
+    head.append(label);
+
+    const bar = document.createElement("div");
+    bar.className = "meter";
+    bar.setAttribute("aria-hidden", "true");
+    const fill = document.createElement("div");
+    fill.style.width = (c.position ?? 0) + "%";
+    bar.append(fill);
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.id = "curtain-" + n.id;
+    slider.min = 0; slider.max = 100; slider.step = 5;
+    slider.value = c.position ?? 0;
+    slider.disabled = !online;
+    slider.setAttribute("aria-label", "Move curtain to position (% open)");
+    slider.oninput = () => { pos.textContent = "go to " + slider.value + "%"; };
+    slider.onchange = () => send({ action: "curtain", node: n.id, state: "goto", level: Number(slider.value) });
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    for (const [text, state, title] of [["Open", "open"], ["Stop", "stop"], ["Close", "close"],
+                                        ["Learn travel", "learn", "Run closed → open once to measure the travel"]]) {
+      const b = document.createElement("button");
+      b.textContent = text;
+      b.disabled = !online;
+      if (title) b.title = title;
+      if (state === "stop") b.className = "stop";
+      b.onclick = () => {
+        if (state === "learn" && !confirm("Learn travel runs the curtain fully closed, then fully open. Start?")) return;
+        send({ action: "curtain", node: n.id, state });
+      };
+      actions.append(b);
+    }
+    box.append(head, bar, slider, actions);
+    return box;
+  }
+
+  $("led-on").onclick =() => send({ action: "led", state: "on" });
+  $("led-off").onclick = () => send({ action: "led", state: "off" });
+  $("scan").onclick = () => { if (send({ action: "scan" })) log("Scanning for nodes…"); };
+  $("refresh").onclick = () => send({ action: "status", node: "all" });
+
+  async function connect() {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws/ui`);
+    ws.onopen = () => setPill($("link"), true, "Server connected", "");
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === "state") { state = msg; render(); }
+      else if (msg.type === "log") log(msg.text, msg.level);
+    };
+    ws.onclose = async () => {
+      setPill($("link"), false, "", "Server disconnected");
+      state.master_online = false;
+      render();
+      try {
+        const r = await fetch("/api/session");
+        if (r.status === 401) { location.href = "/login"; return; }
+      } catch (_) { /* server unreachable; keep retrying */ }
+      setTimeout(connect, 3000);
+    };
+  }
+
+  render();
+  connect();
+</script>
+</body>
+</html>

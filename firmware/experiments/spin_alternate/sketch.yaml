@@ -1,0 +1,2 @@
+# Board for `arduino-cli compile` run in this folder. Upload port is deliberately not set: pass -p explicitly (see AGENTS.md).
+default_fqbn: arduino:avr:nano

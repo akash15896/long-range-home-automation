@@ -1,0 +1,280 @@
+<title>Pico Node Perfboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: one engineering build sheet — layout drawing first, then connector, power, mains, BOM and test tables. */
+:root {
+  --bg: #f3f5f1; --surface: #ffffff; --fg: #1c231e; --muted: #5c6a60; --line: #d5ddd4;
+  --accent: #1f7a4d; --warn-bg: #fff3e0; --warn-fg: #7a3d00; --warn-line: #f0b36b;
+  --board: #20553a; --board-edge: #163d29; --hole: #0f2a1d; --pico: #2c7a50; --spare: rgba(255,255,255,.06);
+  --pcb-text: #e8f3ec; --pcb-muted: #a9cdb8; --copper: #d8b25a; --hdr: #111;
+  --n-ac: #ff3b30; --n-v5: #e5484d; --n-gnd: #9aa7a0; --n-v33: #f5a524; --n-vsys: #ff7ab8; --n-spi: #4ea8ff;
+  --n-rly: #46d48a; --n-fan: #b48cff; --n-led: #ffe14d; --n-run: #3fe0d0;
+  --display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --body: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111613; --surface: #18201b; --fg: #e4ebe6; --muted: #98a89d; --line: #2b362f;
+  --accent: #5fd197; --warn-bg: #2b1d0c; --warn-fg: #ffcf94; --warn-line: #7a4a12; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111613; --surface: #18201b; --fg: #e4ebe6; --muted: #98a89d; --line: #2b362f;
+  --accent: #5fd197; --warn-bg: #2b1d0c; --warn-fg: #ffcf94; --warn-line: #7a4a12; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+header { display: grid; gap: 8px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(28px, 5vw, 42px); line-height: 1.1; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0; text-wrap: balance; }
+h3 { font-size: 16px; margin: 0; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); font-size: 17px; }
+section { display: grid; gap: 16px; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.figure { background: var(--board-edge); border-radius: 14px; padding: 14px; overflow-x: auto; }
+.figure svg { display: block; max-width: none; margin: 0 auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 22px; height: 4px; border-radius: 2px; display: inline-block; }
+.legend i.dash { background: repeating-linear-gradient(90deg, var(--n-v33) 0 6px, transparent 6px 10px) !important; }
+.callout { border: 1px solid var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 16px; display: grid; gap: 6px; }
+.callout strong { color: inherit; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: color-mix(in srgb, var(--surface) 85%, var(--line)); }
+tr:last-child td { border-bottom: 0; }
+td.m, .m { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.grid2 > * { min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; align-content: start; }
+pre { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.5; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+ol, ul { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+li { max-width: 72ch; }
+code { font-family: var(--mono); font-size: .9em; }
+
+/* SVG */
+.board { fill: var(--board); stroke: var(--board-edge); stroke-width: 2; }
+.spare { fill: var(--spare); stroke: var(--pcb-muted); stroke-dasharray: 4 4; stroke-width: 1; }
+.hole { fill: var(--hole); }
+.mnt { fill: var(--hole); stroke: var(--copper); stroke-width: 2; }
+.pico { fill: var(--pico); fill-opacity: .55; stroke: var(--pcb-text); stroke-width: 1.2; }
+.usb { fill: #c9ced3; stroke: #6b7177; }
+.pico-t { fill: var(--pcb-text); font: 700 14px var(--display); }
+.tiny { fill: var(--pcb-muted); font: 9px var(--mono); }
+.note { fill: var(--pcb-muted); font: 11px var(--body); }
+.ref { fill: var(--pcb-text); font: 600 10.5px var(--mono); }
+.pl { fill: var(--pcb-text); font: 8.5px var(--mono); }
+.pl.in { fill: var(--pcb-muted); font-size: 8px; }
+.lblbg { fill: var(--board-edge); }
+.ruler { fill: var(--pcb-muted); font: 9px var(--mono); }
+.tr { fill: none; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
+.tr.jump { stroke-dasharray: 7 5; stroke-width: 2.6; }
+.v5 { stroke: var(--n-v5); } .gnd { stroke: var(--n-gnd); } .v33 { stroke: var(--n-v33); } .vsys { stroke: var(--n-vsys); }
+.spi { stroke: var(--n-spi); } .rly { stroke: var(--n-rly); } .fan { stroke: var(--n-fan); } .led { stroke: var(--n-led); } .run { stroke: var(--n-run); }
+.pin { stroke: none; } .pin.v5 { fill: var(--n-v5); } .pin.gnd { fill: var(--n-gnd); } .pin.v33 { fill: var(--n-v33); }
+.pin.spi { fill: var(--n-spi); } .pin.rly { fill: var(--n-rly); } .pin.fan { fill: var(--n-fan); } .pin.led { fill: var(--n-led); } .pin.run { fill: var(--n-run); }
+.hdr { fill: var(--hdr); stroke: #444; }
+.pad { fill: none; stroke: var(--copper); stroke-width: 1.6; }
+.pad.used { fill: var(--copper); }
+.lead { stroke: #c9ced3; stroke-width: 1.6; }
+.diode { fill: #222; } .band { fill: #d9d9d9; }
+.ecap { fill: #2a4aa8; stroke: #9fb4ff; stroke-width: 1; }
+.ccap { fill: #d9a441; }
+.res { fill: #d9c3a0; stroke: #8a6d3b; }
+.sw { fill: #222; stroke: #666; } .swb { fill: #444; stroke: #888; }
+.mains { fill: rgba(255,59,48,.16); stroke: var(--n-ac); stroke-width: 1.6; stroke-dasharray: 6 4; }
+.mains-t { fill: #ffb3ad; font: 700 11px var(--mono); letter-spacing: .06em; }
+.keepout { fill: rgba(0,0,0,.25); }
+.hlk { fill: #e9e9e6; fill-opacity: .22; stroke: #f2f2ee; stroke-width: 1.4; }
+.hlk-t { fill: var(--pcb-text); font: 700 13px var(--display); }
+.lora { fill: #1d4fa3; fill-opacity: .35; stroke: #9cc0ff; stroke-width: 1.2; }
+.can { fill: #c9ced3; fill-opacity: .35; stroke: #c9ced3; }
+.fuse { fill: #f1e6c8; stroke: #8a7a4a; } .mov { fill: #2f6fd6; stroke: #a8c6ff; }
+.ac { stroke: var(--n-ac); } .pin.ac { fill: var(--n-ac); } .pin.nc { fill: #555; }
+.pl.lo { font-size: 8px; } .pl.wl { fill: #bfe0ff; font-size: 8px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">LoRa_pico_node · production build · rev C · 2026-11-04</div>
+    <h1>Pico 2 node perfboard</h1>
+    <p class="lede">One 15 × 9 cm perfboard carries the whole node: the HLK-10M05 mains supply, the Pico 2, the LoRa breakout, reset and status LED, plus headers for the 4-channel relay module and the fan's stepper driver. A marked zone on the left holds all the mains copper, at least 10 mm from everything else.</p>
+    <div class="chips">
+      <span class="chip">230 V AC in · HLK-10M05 5 V 2 A</span><span class="chip">Pico 2 · RP2350</span><span class="chip">Ra-02 breakout on board</span>
+      <span class="chip">4 × relay (relay 4 = fan power)</span><span class="chip">28BYJ-48 + ULN2003 = fan speed</span><span class="chip">LED on GP15</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Board layout</h2>
+    <p>Component side, with the solder-side wiring drawn through the board. Numbers along the edges are hole columns and rows. <strong>When you solder from underneath, the picture is mirrored left to right.</strong> Solid lines are bare tinned wire on the solder side. Dashed lines are insulated wire: the four SPI lines have to cross each other on the way to the far row of the LoRa socket.</p>
+    <div class="figure"><!--SVG--></div>
+    <div class="legend">
+      <span><i style="background:var(--n-ac)"></i>230 V AC (L / N)</span>
+      <span><i style="background:var(--n-v5)"></i>5 V</span>
+      <span><i style="background:var(--n-vsys)"></i>VSYS (after D1)</span>
+      <span><i style="background:var(--n-v33)"></i>3.3 V</span>
+      <span><i style="background:var(--n-gnd)"></i>GND</span>
+      <span><i style="background:var(--n-spi)"></i>LoRa</span>
+      <span><i class="dash"></i>LoRa SPI, insulated wire</span>
+      <span><i style="background:var(--n-rly)"></i>Relay inputs</span>
+      <span><i style="background:var(--n-fan)"></i>Fan stepper</span>
+      <span><i style="background:var(--n-led)"></i>Status LED</span>
+      <span><i style="background:var(--n-run)"></i>RUN / reset</span>
+    </div>
+    <div class="callout">
+      <strong>Things that are easy to get wrong</strong>
+      <ul>
+        <li><b>Mains zone (red, columns 0–11):</b> nothing except J0, F1, RV1 and the HLK's AC pins. Leave column 12 and the top half of column 13 empty: that strip is the isolation gap. On strip-board, cut the strips at the gap.</li>
+        <li><b>The HLK footprint is approximate.</b> Lay your module on the board and mark its four pins before you solder anything. The AC pins must sit inside the red zone, and its <b>+Vo</b>/<b>−Vo</b> pins at the far end.</li>
+        <li><b>LoRa socket rows are drawn 8 holes apart.</b> Plug your breakout into the two female headers before soldering them, and move the right-hand row if your breakout's rows are spaced differently. The antenna end points off the top edge of the board.</li>
+        <li><b>Rev C: the Pico stands upright with its USB end at the top edge.</b> The micro-USB socket sits about 5 mm in from the board edge, so a cable plugs straight in from above the edge. Cut a slot in the enclosure wall there. Keep the area between the socket and the edge free of tall parts.</li>
+        <li>Pico pin 23 (GND, right row) and pin 8 (GND, left row) are left unconnected, on purpose. On row 8, J4's VCC pin sits level with Pico pin 8, and on row 14, J5's +5V pin sits level with GP10: there is <b>no</b> wire between them.</li>
+        <li>The GND bus (row 3) passes under the Pico between its two GND pins 3 and 38. That is fine on the solder side, as long as no other wire shares row 3.</li>
+        <li>D1's stripe faces the Pico (VSYS side, left). The 5 V rail runs round the bottom and up the right edge to D1, so it never crosses the GND bus.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Connections</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Part</th><th>Pin</th><th>Connects to</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="2"><b>J0</b> mains in<br><span class="m">5.08 mm screw terminal</span></td><td class="m"><span class="dot" style="background:var(--n-ac)"></span>L</td><td class="m">F1 → RV1 → HLK AC-L</td><td>Live from the MCB</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-ac)"></span>N</td><td class="m">RV1 → HLK AC-N</td><td>Neutral</td></tr>
+        <tr><td rowspan="2"><b>PS1</b> HLK-10M05</td><td class="m"><span class="dot" style="background:var(--n-v5)"></span>+Vo</td><td class="m">5 V rail → D1 → Pico 39 VSYS</td><td>Also feeds the relays and the stepper</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>−Vo</td><td class="m">GND bus → Pico 38</td><td></td></tr>
+        <tr><td rowspan="8"><b>U2</b> LoRa breakout<br><span class="m">2 × 8 female header</span></td><td class="m"><span class="dot" style="background:var(--n-v33)"></span>3.3V</td><td class="m">Pico 36 · 3V3 OUT</td><td>Never 5 V</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>GND</td><td class="m">GND bus</td><td>Left row, top pin</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>RST</td><td class="m">Pico 27 · GP21</td><td>Bare wire</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>DIO0</td><td class="m">Pico 26 · GP20</td><td>Bare wire</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>MOSI</td><td class="m">Pico 25 · GP19</td><td>Insulated wire</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>SCK</td><td class="m">Pico 24 · GP18</td><td>Insulated wire</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>NSS</td><td class="m">Pico 22 · GP17</td><td>Insulated wire</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>MISO</td><td class="m">Pico 21 · GP16</td><td>Insulated wire</td></tr>
+        <tr><td rowspan="6"><b>J4</b> relay module<br><span class="m">6-pin, module order</span></td><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>GND</td><td class="m">Pico 3</td><td rowspan="6">Same order as the module's own header, so a straight 6-wire cable fits. Leave the module's JD-VCC jumper <b>on</b>.</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-rly)"></span>IN1</td><td class="m">Pico 4 · GP2</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-rly)"></span>IN2</td><td class="m">Pico 5 · GP3</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-rly)"></span>IN3</td><td class="m">Pico 6 · GP4</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-rly)"></span>IN4</td><td class="m">Pico 7 · GP5 — fan power</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-v5)"></span>VCC</td><td class="m">5 V rail</td></tr>
+        <tr><td rowspan="3"><b>J5</b> fan stepper<br><span class="m">6-pin</span></td><td class="m"><span class="dot" style="background:var(--n-fan)"></span>IN1–IN4</td><td class="m">Pico 9–12 · GP6–GP9</td><td>ULN2003 IN1–IN4</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>GND</td><td class="m">Pico 13</td><td>ULN2003 “−”</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-v5)"></span>+5V</td><td class="m">5 V rail</td><td>ULN2003 “+”</td></tr>
+        <tr><td rowspan="2"><b>J6</b> status LED</td><td class="m"><span class="dot" style="background:var(--n-led)"></span>+</td><td class="m">Pico 20 · GP15 via R1</td><td>Panel LED anode (long leg)</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>−</td><td class="m">Pico 18</td><td>Panel LED cathode</td></tr>
+        <tr><td rowspan="2"><b>J7</b> panel reset</td><td class="m"><span class="dot" style="background:var(--n-run)"></span>RUN</td><td class="m">Pico 30</td><td rowspan="2">Push button, in parallel with SW1</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>GND</td><td class="m">Pico 28</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout">
+      <strong>The relay module needs the 2026-11-03 firmware</strong>
+      <p>The relay inputs are now driven open-drain: pulled to GND for ON, released for OFF. A standard 5 V relay module, with its JD-VCC jumper fitted, then switches fully off even though the Pico runs on 3.3 V. This is safe because the Pico 2's GPIOs are 5 V tolerant. Do not wire the ESP32 node this way: its pins are not 5 V tolerant.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Mains wiring and safety</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>How it connects</h3>
+<pre>230 V L ─ MCB ─┬─ J0 L ─ F1 T1A ─ HLK-10M05 ─ 5 V (on board)
+230 V N ───────┼─ J0 N ──────────┘
+               │
+               ├─ relay 1 COM ─ NO ─► load 1
+               ├─ relay 2 COM ─ NO ─► load 2
+               ├─ relay 3 COM ─ NO ─► load 3
+               └─ relay 4 COM ─ NO ─► fan regulator ─► fan
+                                       ▲
+                    28BYJ-48 turns the knob = speed</pre>
+        <p>Relay 4 switches the fan on and off. The stepper sets the speed by turning the regulator knob.</p>
+      </div>
+      <div class="card">
+        <h3>Current budget (5 V)</h3>
+        <div class="tbl"><table>
+          <tbody>
+            <tr><td>Pico 2</td><td class="m">≈ 30 mA</td></tr>
+            <tr><td>LoRa while sending (17 dBm)</td><td class="m">≈ 120 mA</td></tr>
+            <tr><td>4 relays all on</td><td class="m">≈ 290 mA</td></tr>
+            <tr><td>Stepper while moving (off when idle)</td><td class="m">≈ 250 mA</td></tr>
+            <tr><td>LED</td><td class="m">≈ 5 mA</td></tr>
+            <tr><td><b>Peak</b></td><td class="m"><b>≈ 700 mA of 2 A</b></td></tr>
+          </tbody>
+        </table></div>
+        <p>The 3.3 V pin supplies about 155 mA (Pico + LoRa) of its 300 mA limit.</p>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>The board now carries 230 V</strong>
+      <ul>
+        <li>Mount it in a closed, non-conductive enclosure. Use a nylon screw in the top-left mounting hole, next to the mains zone.</li>
+        <li>Mains copper stays inside the red zone, with an empty gap of at least 10 mm to any low-voltage copper. Make mains joints with plenty of solder and no stray strands, and cover the underside of the zone with Kapton tape or conformal coating.</li>
+        <li>F1 (T1A slow-blow) protects the HLK, and RV1 (a 10D561K varistor) absorbs mains spikes. The relay loads are fed from the MCB, not through F1.</li>
+        <li>Relay contacts are rated 10 A 250 VAC; keep each load well below that, and switch the live wire.</li>
+        <li><b>USB and mains at the same time is fine electrically:</b> D1 stops USB from feeding the 5 V rail, and the Pico's own diode stops the HLK from pushing 5 V back into the PC. Whichever supply is higher runs the Pico. The HLK is isolated, so the PC is not connected to mains.</li>
+        <li>Only connect a PC while mains is on if the board is in its closed enclosure, or the mains zone and relay terminals are covered. A build fault there would reach the PC and you. For bench work with the board open, unplug mains first, or use a USB isolator (ADuM4160 type). <b>Never</b> touch the board while J0 is connected.</li>
+        <li>USB alone powers the Pico and the LoRa module only. The relays and stepper need the HLK, because D1 blocks USB from the 5 V rail.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Parts list</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Ref</th><th>Part</th><th>Qty</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="m">—</td><td>Perfboard 15 × 9 cm, 2.54 mm pitch</td><td class="m">1</td><td>Single-sided pads (not strip-board) is easiest</td></tr>
+        <tr><td class="m">PS1</td><td>Hi-Link HLK-10M05 (5 V 2 A)</td><td class="m">1</td><td>Genuine part; fakes have poor isolation</td></tr>
+        <tr><td class="m">J0</td><td>2-pin 5.08 mm screw terminal, 300 V rated</td><td class="m">1</td><td>Mains in</td></tr>
+        <tr><td class="m">F1</td><td>Fuse T1A 250 V: TR5 radial, or 5 × 20 mm in a PCB holder</td><td class="m">1</td><td>Slow-blow (T)</td></tr>
+        <tr><td class="m">RV1</td><td>Varistor 10D561K (560 V)</td><td class="m">1</td><td>Across L and N after the fuse</td></tr>
+        <tr><td class="m">U1</td><td>Raspberry Pi Pico 2 + 2 × 20-pin female headers</td><td class="m">1</td><td></td></tr>
+        <tr><td class="m">U2</td><td>Ra-02 433 MHz on a 2.54 mm breakout + antenna, on 2 × 8-pin female headers</td><td class="m">1</td><td>Fit the antenna before you power it</td></tr>
+        <tr><td class="m">—</td><td>4-channel 5 V relay module with opto-couplers</td><td class="m">1</td><td>Active-LOW inputs</td></tr>
+        <tr><td class="m">—</td><td>28BYJ-48 5 V stepper + ULN2003 board</td><td class="m">1</td><td>Fan regulator knob</td></tr>
+        <tr><td class="m">D1</td><td>1N5817 Schottky diode</td><td class="m">1</td><td>Stops USB 5 V from feeding the 5 V rail and HLK, so USB and mains can both be connected</td></tr>
+        <tr><td class="m">C1</td><td>470 µF 16 V electrolytic</td><td class="m">1</td><td>At the HLK output; absorbs relay and stepper surges</td></tr>
+        <tr><td class="m">C3</td><td>100 µF 10 V electrolytic</td><td class="m">1</td><td>Next to the LoRa socket</td></tr>
+        <tr><td class="m">C4</td><td>100 nF ceramic</td><td class="m">1</td><td>Next to the LoRa socket</td></tr>
+        <tr><td class="m">R1</td><td>330 Ω ¼ W</td><td class="m">1</td><td>LED current about 4 mA</td></tr>
+        <tr><td class="m">SW1</td><td>6 × 6 mm tactile switch</td><td class="m">1</td><td>On-board reset</td></tr>
+        <tr><td class="m">J4–J7</td><td>Male pin headers or JST-XH: 6, 6, 2, 2 pin</td><td class="m">4</td><td>JST-XH won't shake loose</td></tr>
+        <tr><td class="m">—</td><td>5 mm panel LED + panel push button</td><td class="m">1 + 1</td><td>Optional, for the enclosure front</td></tr>
+        <tr><td class="m">—</td><td>Tinned copper wire, thin insulated wire (for SPI), Kapton tape</td><td class="m">—</td><td></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Build and test in this order</h2>
+    <ol>
+      <li><b>Low-voltage side first, no HLK yet:</b> solder D1, C1, the Pico and LoRa sockets, C3, C4, SW1, R1 and the J4–J7 headers. With the meter, check that 5 V, VSYS, 3.3 V and GND are not shorted to each other.</li>
+      <li><b>On USB only:</b> plug in the Pico and the LoRa breakout (antenna fitted) and power from USB. Pin 36 should read 3.3 V, the master should get ping replies, the LED should blink, and SW1 should restart the node.</li>
+      <li><b>Relays and fan on a bench 5 V supply:</b> feed 5 V into the C1 pads, then test relays 1–4 on and off, and the fan stepper with <code>HAS_FAN 1</code>. Use no mains loads yet.</li>
+      <li><b>Mains section:</b> unplug everything, then solder J0, F1, RV1 and the HLK. Check with the meter that L and N have no continuity to any low-voltage point.</li>
+      <li><b>First mains power-up:</b> remove the Pico and the LoRa breakout, close the enclosure and power through a fused lead. The 5 V rail should read 5.0 V ± 0.2.</li>
+      <li><b>Full node:</b> unplug mains, refit the Pico and the breakout, close the enclosure, power up and run a reliability test. Connect the loads last.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Firmware settings for this board</h2>
+    <div class="tbl"><table>
+      <tbody>
+        <tr><td class="m">Relays</td><td>GP2–GP5, active LOW, <b>open-drain</b> (changed 2026-11-03; compiled, not yet uploaded)</td></tr>
+        <tr><td class="m">HAS_FAN</td><td>Set to <b>1</b> on the fan node (it is 0 now). Fan GP6–GP9</td></tr>
+        <tr><td class="m">EXT_LED</td><td class="m">GP15, mirrors the onboard LED</td></tr>
+        <tr><td class="m">LoRa</td><td class="m">NSS GP17, RST GP21, DIO0 GP20, SPI0 GP16/18/19 (unchanged)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+</div>

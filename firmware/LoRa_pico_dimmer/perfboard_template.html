@@ -1,0 +1,270 @@
+<title>Pico Dimmer Node Perfboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: one engineering build sheet (same system as the relay node's sheet): layout drawing first, then connector, mains, BOM and test tables. */
+:root {
+  --bg: #f3f5f1; --surface: #ffffff; --fg: #1c231e; --muted: #5c6a60; --line: #d5ddd4;
+  --accent: #1f7a4d; --warn-bg: #fff3e0; --warn-fg: #7a3d00; --warn-line: #f0b36b;
+  --board: #20553a; --board-edge: #163d29; --hole: #0f2a1d; --pico: #2c7a50;
+  --pcb-text: #e8f3ec; --pcb-muted: #a9cdb8; --copper: #d8b25a; --hdr: #111;
+  --n-ac: #ff3b30; --n-v5: #e5484d; --n-gnd: #9aa7a0; --n-v33: #f5a524; --n-vsys: #ff7ab8; --n-spi: #4ea8ff;
+  --n-dim: #46d48a; --n-fan: #b48cff; --n-btn: #b48cff; --n-led: #ffe14d; --n-run: #3fe0d0;
+  --q: #ffd166; --usb: #c9ced3; --usb-edge: #6b7177; --part-dark: #222; --part-edge: #666; --band: #d9d9d9;
+  --display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --body: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111613; --surface: #18201b; --fg: #e4ebe6; --muted: #98a89d; --line: #2b362f;
+  --accent: #5fd197; --warn-bg: #2b1d0c; --warn-fg: #ffcf94; --warn-line: #7a4a12; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111613; --surface: #18201b; --fg: #e4ebe6; --muted: #98a89d; --line: #2b362f;
+  --accent: #5fd197; --warn-bg: #2b1d0c; --warn-fg: #ffcf94; --warn-line: #7a4a12; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+header { display: grid; gap: 8px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(28px, 5vw, 42px); line-height: 1.1; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0; text-wrap: balance; }
+h3 { font-size: 16px; margin: 0; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); font-size: 17px; }
+section { display: grid; gap: 16px; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.figure { background: var(--board-edge); border-radius: 14px; padding: 14px; overflow-x: auto; }
+.figure svg { display: block; max-width: none; margin: 0 auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 22px; height: 4px; border-radius: 2px; display: inline-block; }
+.legend i.dash { background: repeating-linear-gradient(90deg, var(--n-spi) 0 6px, transparent 6px 10px) !important; }
+.legend i.dashany { background: repeating-linear-gradient(90deg, var(--muted) 0 6px, transparent 6px 10px) !important; }
+.legend i.dash33 { background: repeating-linear-gradient(90deg, var(--n-v33) 0 6px, transparent 6px 10px) !important; }
+.callout { border: 1px solid var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 16px; display: grid; gap: 6px; }
+.callout strong { color: inherit; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: color-mix(in srgb, var(--surface) 85%, var(--line)); }
+tr:last-child td { border-bottom: 0; }
+td.m, .m { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.grid2 > * { min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; align-content: start; }
+pre { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.5; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+ol, ul { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+li { max-width: 72ch; }
+code { font-family: var(--mono); font-size: .9em; }
+
+/* SVG */
+.board { fill: var(--board); stroke: var(--board-edge); stroke-width: 2; }
+.hole { fill: var(--hole); }
+.mnt { fill: var(--hole); stroke: var(--copper); stroke-width: 2; }
+.pico { fill: var(--pico); fill-opacity: .55; stroke: var(--pcb-text); stroke-width: 1.2; }
+.usb { fill: var(--usb); stroke: var(--usb-edge); }
+.pico-t { fill: var(--pcb-text); font: 700 14px var(--display); }
+.tiny { fill: var(--pcb-muted); font: 9px var(--mono); }
+.ref { fill: var(--pcb-text); font: 600 10.5px var(--mono); }
+.pl { fill: var(--pcb-text); font: 8.5px var(--mono); }
+.pl.in { fill: var(--pcb-muted); font-size: 8px; }
+.ruler { fill: var(--pcb-muted); font: 9px var(--mono); }
+.tr { fill: none; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
+.tr.jump { stroke-dasharray: 7 5; stroke-width: 2.6; }
+.v5 { stroke: var(--n-v5); } .gnd { stroke: var(--n-gnd); } .v33 { stroke: var(--n-v33); } .vsys { stroke: var(--n-vsys); }
+.spi { stroke: var(--n-spi); } .dim { stroke: var(--n-dim); } .fan { stroke: var(--n-fan); } .pin.fan { fill: var(--n-fan); } .pl.dest.fan { fill: var(--n-fan); } .btn { stroke: var(--n-btn); } .led { stroke: var(--n-led); } .run { stroke: var(--n-run); }
+.pin { stroke: none; } .pin.v5 { fill: var(--n-v5); } .pin.gnd { fill: var(--n-gnd); } .pin.v33 { fill: var(--n-v33); }
+.pin.spi { fill: var(--n-spi); } .pin.dim { fill: var(--n-dim); } .pin.btn { fill: var(--n-btn); } .pin.led { fill: var(--n-led); } .pin.run { fill: var(--n-run); }
+.hdr { fill: var(--hdr); stroke: #444; }
+.pad { fill: none; stroke: var(--copper); stroke-width: 1.6; }
+.pad.used { fill: var(--copper); }
+.lead { stroke: var(--usb); stroke-width: 1.6; }
+.diode { fill: var(--part-dark); } .band { fill: var(--band); }
+.ecap { fill: #2a4aa8; stroke: #9fb4ff; stroke-width: 1; }
+.ccap { fill: #d9a441; }
+.res { fill: #d9c3a0; stroke: #8a6d3b; }
+.sw { fill: var(--part-dark); stroke: var(--part-edge); } .swb { fill: #444; stroke: #888; }
+.mains { fill: rgba(255,59,48,.16); stroke: var(--n-ac); stroke-width: 1.6; stroke-dasharray: 6 4; }
+.mains-t { fill: #ffb3ad; font: 700 11px var(--mono); letter-spacing: .06em; }
+.keepout { fill: rgba(0,0,0,.25); }
+.hlk { fill: #e9e9e6; fill-opacity: .22; stroke: #f2f2ee; stroke-width: 1.4; }
+.hlk-t { fill: var(--pcb-text); font: 700 13px var(--display); }
+.lora { fill: #1d4fa3; fill-opacity: .35; stroke: #9cc0ff; stroke-width: 1.2; }
+.can { fill: var(--usb); fill-opacity: .35; stroke: var(--usb); }
+.fuse { fill: #f1e6c8; stroke: #8a7a4a; } .mov { fill: #2f6fd6; stroke: #a8c6ff; }
+.ac { stroke: var(--n-ac); } .pin.ac { fill: var(--n-ac); } .pin.nc { fill: #555; }
+.pl.lo { font-size: 8px; } .pl.wl { fill: #bfe0ff; font-size: 8px; }
+.tr.todo { stroke-dasharray: 6 5; stroke-width: 2.4; opacity: .9; }
+.pl.q { fill: var(--q); font-size: 9px; } .tiny.ink { fill: #10233f; font-weight: 700; }
+.fusebody { fill: #b9705a; stroke: #e2a48f; } .jst { fill: #f2f2ee; stroke: #b9b9b2; }
+.ant { fill: none; stroke: #0b0b0b; stroke-width: 2.4; stroke-linecap: round; }
+.pl.dest { font-size: 10px; stroke: none; } .pl.dest.spi { fill: var(--n-spi); } .pl.dest.dim { fill: var(--n-dim); }
+.pl.dest.led { fill: var(--n-led); } .pl.dest.gnd { fill: var(--pcb-text); } .pl.dest.run { fill: var(--n-run); }
+.pl.dest.v33 { fill: var(--n-v33); } .pl.dest.vsys { fill: var(--n-vsys); } .pl.dest.warn { fill: #ffb3ad; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">LoRa_pico_dimmer · as-built board · 2026-11-14</div>
+    <h1>Pico dimmer node perfboard</h1>
+    <p class="lede">The node on your perfboard: Hi-Link supply with varistor, fuse, diode and capacitor, the Pico mounted mirrored under the board, the Ra-02 beside it, a reset push switch and a status LED. Both channels of the AC dimmer are used: channel 1 dims the light bulb, channel 2 sets the fan speed. The load current never passes through the perfboard.</p>
+    <div class="chips">
+      <span class="chip">230 V · HLK-10M05 5 V</span><span class="chip">Raspberry Pi Pico · RP2040</span><span class="chip">Ra-02 (tested, working)</span>
+      <span class="chip">Z-C GP26</span><span class="chip">Light: PWM1 GP27 → L1</span><span class="chip">Fan: PWM2 GP28 → L2</span>
+      <span class="chip">Push switch = reset</span><span class="chip">LED GP15</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Your board as built</h2>
+    <p>Traced from your photo and turned so the Hi-Link is on the left. The Pico sits under the board, mirrored, with its USB end at the bottom edge: <b>GP15 (pin 20) is top-left and GP16 (pin 21) is top-right</b>. Part positions are approximate because the photo was taken at an angle; the Pico and LoRa pins are exact by name.</p>
+    <p><b>Solid lines</b> are wires already on your board. <b>Dashed lines</b> are still to wire: J4 to the dimmer (straight across from the Pico's right row), J7 to the reset switch, and the status LED through R1.</p>
+    <div class="figure"><!--ASLAYOUT--></div>
+    <div class="legend">
+      <span><i style="background:var(--n-ac)"></i>230 V</span>
+      <span><i style="background:var(--n-v5)"></i>5 V</span>
+      <span><i style="background:var(--n-vsys)"></i>VSYS</span>
+      <span><i style="background:var(--n-v33)"></i>3.3 V</span>
+      <span><i style="background:var(--n-gnd)"></i>GND</span>
+      <span><i style="background:var(--n-spi)"></i>LoRa</span>
+      <span><i style="background:var(--n-dim)"></i>Dimmer Z-C / light</span>
+      <span><i style="background:var(--n-fan)"></i>Dimmer fan</span>
+      <span><i style="background:var(--n-led)"></i>LED</span>
+      <span><i style="background:var(--n-run)"></i>Reset</span>
+      <span><i class="dashany"></i>Still to wire</span>
+      <span><i style="background:var(--q)"></i>Part I could not identify</span>
+    </div>
+    <div class="callout">
+      <strong>Check before you power it</strong>
+      <ul>
+        <li><b>The dimmer's VCC goes to 3.3 V (Pico pin 36), never to 5 V.</b> The module pulls Z-C up to VCC, and the RP2040's pins are not 5 V tolerant.</li>
+        <li><b>J4 runs straight across from the right pin row</b>: GP26 (pin 31), GP27 (pin 32), GP28 (pin 34), 3V3 (pin 36), GND (pin 38). Pins 33 (AGND), 35 (ADC_VREF) and 37 (3V3_EN) sit between them: <b>leave those three unconnected</b>. GND on 3V3_EN switches the 3.3 V supply off.</li>
+        <li>Confirm the pin map below against the labels printed on the back of the Pico before you solder J4.</li>
+        <li>Unidentified parts (yellow "?"): the 5-pin socket on the top edge, the blue part at the Hi-Link's AC end, the brown round part (drawn as F1) and the white JST. Tell me what they are and I'll label them.</li>
+        <li>If the varistor and fuse are plugged into 2.54 mm sockets that carry 230 V, L and N sit only 2.5 mm apart and the parts can work loose. Soldering them in is safer.</li>
+        <li>If the Pico is on the underside, put Kapton tape between its back and the solder-side wiring: its test pads are bare copper.</li>
+      </ul>
+    </div>
+    <h3>Pin map for your Pico</h3>
+    <div class="figure"><!--ASBUILT--></div>
+  </section>
+
+  <section>
+    <h2>Connections</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Part</th><th>Pin</th><th>Pico pin</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="2"><b>PS1</b> Hi-Link HLK-10M05</td><td class="m"><span class="dot" style="background:var(--n-v5)"></span>+Vo</td><td class="m">C1 + → D1 → 39 VSYS</td><td>D1 stripe toward VSYS</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>−Vo</td><td class="m">C1 − → 3 GND</td><td></td></tr>
+        <tr><td rowspan="8"><b>U2</b> Ra-02<br><span class="m">on its adapter · working</span></td><td class="m"><span class="dot" style="background:var(--n-v33)"></span>3.3V</td><td class="m">36 · 3V3 OUT</td><td>Never 5 V</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>GND</td><td class="m">GND</td><td></td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>RST</td><td class="m">27 · GP21</td><td rowspan="6">Already wired and tested</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>DIO0</td><td class="m">26 · GP20</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>MOSI</td><td class="m">25 · GP19</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>SCK</td><td class="m">24 · GP18</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>NSS</td><td class="m">22 · GP17</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-spi)"></span>MISO</td><td class="m">21 · GP16</td></tr>
+        <tr><td rowspan="5"><b>J4</b> AC dimmer<br><span class="m">to the module's low-voltage pins</span></td><td class="m"><span class="dot" style="background:var(--n-dim)"></span>Z-C</td><td class="m">31 · GP26</td><td>Zero-cross, shared by both channels</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-dim)"></span>PWM1 / D1</td><td class="m">32 · GP27</td><td>Channel 1 → L1 → light bulb</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-fan)"></span>PWM2 / D2</td><td class="m">34 · GP28</td><td>Channel 2 → L2 → fan</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-v33)"></span>VCC</td><td class="m">36 · 3V3 OUT</td><td>3.3 V only</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>GND</td><td class="m">38 · GND</td><td></td></tr>
+        <tr><td rowspan="2"><b>J7</b> reset<br><span class="m">panel push switch</span></td><td class="m"><span class="dot" style="background:var(--n-run)"></span>NO</td><td class="m">30 · RUN</td><td rowspan="2">Pressing it restarts the Pico. NC unused. Brightness and fan levels come back after the restart.</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>C</td><td class="m">28 · GND</td></tr>
+        <tr><td rowspan="2"><b>J6</b> status LED</td><td class="m"><span class="dot" style="background:var(--n-led)"></span>+</td><td class="m">20 · GP15 via R1 330 Ω</td><td>LED anode (long leg)</td></tr>
+        <tr><td class="m"><span class="dot" style="background:var(--n-gnd)"></span>−</td><td class="m">18 · GND</td><td>LED cathode</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Mains wiring, light and fan</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>How it connects</h3>
+<pre>230 V L ─ MCB ─┬─ Hi-Link via F1 ─ 5 V (on board)
+230 V N ───────┤
+               ├─ dimmer AC-L
+               └─ dimmer AC-N ──────────────┐
+                                            │
+               dimmer L1 ─► light bulb ─────┤ (back to N)
+               dimmer L2 ─► fan ────────────┘ (back to N)
+
+   J4 (5 wires, low voltage) ─ dimmer VCC GND Z-C PWM1 PWM2</pre>
+        <p>L1 and L2 are the two dimmed live outputs. Each load's other wire goes to neutral. The module takes its mains straight from the MCB, so the bulb and fan current never runs through the perfboard.</p>
+      </div>
+      <div class="card">
+        <h3>Running a fan on channel 2</h3>
+        <ul>
+          <li>Suits ordinary ceiling and table fans with a capacitor-run motor. It does not suit BLDC or remote-controlled fans, which have their own electronics.</li>
+          <li><b>Take the old wall regulator out of the fan circuit</b>, or leave it at full speed. Two speed controls in series misbehave.</li>
+          <li>The fan's triac gate is held on for the rest of each half wave so it latches reliably with a motor load.</li>
+          <li>Speed 1–100 is spread over 35–100 % power so the lowest speed still turns. From standstill it starts at full power for 1.5 s, then slows to the speed asked for.</li>
+          <li>A little hum at low speed is normal with this kind of control. If speed 1 hums without turning, raise <code>FAN_MIN_POWER</code>.</li>
+          <li>Keep each load within the dimmer module's rating printed on it.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>This board and the dimmer carry 230 V</strong>
+      <ul>
+        <li>Mount the perfboard and the dimmer module in one closed, non-conductive enclosure. The dimmer's triacs and heatsink are at mains potential.</li>
+        <li>F1 (T1A slow-blow) protects the Hi-Link. RV1 (10D561K) absorbs mains spikes.</li>
+        <li>USB and mains at the same time is fine electrically: D1 stops USB from feeding the 5 V rail, and the Hi-Link is isolated. Only connect a PC with mains on if everything is closed up; otherwise unplug mains first or use a USB isolator. <b>Never</b> touch the board or the dimmer while mains is connected.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Parts list</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Ref</th><th>Part</th><th>Qty</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="m">PS1</td><td>Hi-Link HLK-10M05 (5 V 2 A)</td><td class="m">1</td><td>On the board</td></tr>
+        <tr><td class="m">F1</td><td>Fuse T1A 250 V slow-blow</td><td class="m">1</td><td>In the live wire before the Hi-Link</td></tr>
+        <tr><td class="m">RV1</td><td>Varistor 10D561K (560 V)</td><td class="m">1</td><td>Across L and N after the fuse</td></tr>
+        <tr><td class="m">U1</td><td>Raspberry Pi Pico (RP2040)</td><td class="m">1</td><td>Mounted mirrored, under the board</td></tr>
+        <tr><td class="m">U2</td><td>Ra-02 433 MHz on its adapter + antenna</td><td class="m">1</td><td>Working</td></tr>
+        <tr><td class="m">—</td><td>2-channel AC dimmer module (AC-L, AC-N, L1, L2)</td><td class="m">1</td><td>Both channels used</td></tr>
+        <tr><td class="m">D1</td><td>1N5817 Schottky diode</td><td class="m">1</td><td>5 V rail → VSYS</td></tr>
+        <tr><td class="m">C1</td><td>470 µF 16 V electrolytic</td><td class="m">1</td><td>At the Hi-Link output</td></tr>
+        <tr><td class="m">R1</td><td>330 Ω ¼ W</td><td class="m">1</td><td>Status LED</td></tr>
+        <tr><td class="m">J4</td><td>8-pin header (3 pins unused) or 5 separate wires</td><td class="m">1</td><td>To the dimmer's low-voltage pins</td></tr>
+        <tr><td class="m">J6, J7</td><td>2-pin headers or JST-XH</td><td class="m">2</td><td>LED and reset switch</td></tr>
+        <tr><td class="m">—</td><td>Push switch with C / NO / NC terminals</td><td class="m">1</td><td>Reset: C and NO used</td></tr>
+        <tr><td class="m">—</td><td>5 mm panel LED</td><td class="m">1</td><td>Status</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Finish and test in this order</h2>
+    <ol>
+      <li><b>Low-voltage wiring, mains unplugged:</b> wire J4, J7, R1 and J6 as in the drawing. With the meter, check that 3.3 V, 5 V and GND are not shorted, and that nothing touches Pico pins 33, 35 and 37.</li>
+      <li><b>On USB only:</b> upload <code>LoRa_pico_dimmer</code>. The LED should double-blink (no mains at the dimmer yet), the master's <code>scan</code> should find the node, and the reset switch should restart it.</li>
+      <li><b>Light first:</b> unplug, connect the dimmer's AC-L / AC-N and the bulb on L1, close the enclosure and power up. The LED changes to one blink every 2 s. Try <code>dim &lt;id&gt; 50</code>, <code>dim &lt;id&gt; next</code>, <code>dim &lt;id&gt; off</code>.</li>
+      <li><b>Then the fan:</b> unplug, connect the fan on L2 (wall regulator removed or at full), power up and try <code>fan &lt;id&gt; 100</code>, then 60, 30 and 0. The fan slider on the website works too.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Firmware settings for this board</h2>
+    <div class="tbl"><table>
+      <tbody>
+        <tr><td class="m">Sketch</td><td><code>LoRa_pico_dimmer</code>, board "Raspberry Pi Pico" (FQBN <code>rp2040:rp2040:rpipico</code>)</td></tr>
+        <tr><td class="m">Dimmer pins</td><td class="m">ZC_PIN 26 · LIGHT_GATE_PIN 27 · FAN_GATE_PIN 28</td></tr>
+        <tr><td class="m">Light</td><td>Master <code>dim &lt;id|all&gt; &lt;0-100|on|off|next&gt;</code>; <code>next</code> steps OFF → 25 → 50 → 75 → 100 %.</td></tr>
+        <tr><td class="m">Fan</td><td>Master <code>fan &lt;id&gt; &lt;0-100&gt;</code> and the website's fan slider. FAN_MIN_POWER 35, FAN_KICK_MS 1500.</td></tr>
+        <tr><td class="m">Memory</td><td>Light and fan levels come back after a power cut or reset.</td></tr>
+        <tr><td class="m">EXT_LED</td><td class="m">GP15: 1 blink / 2 s = OK · 2 blinks = no mains at dimmer · fast = no radio</td></tr>
+        <tr><td class="m">LoRa</td><td class="m">NSS GP17, RST GP21, DIO0 GP20, SPI0 GP16/18/19</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+</div>
