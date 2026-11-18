@@ -53,14 +53,24 @@ docker run --rm -it -p 3000:3000 -v "$PWD:/src" -w /src -e CARGO_TARGET_DIR=/tmp
 roles, command validation). The session cookie is `Secure`, so browsers keep it only over HTTPS (or on localhost).
 
 ## Deploy (Raspberry Pi, Debian aarch64)
-1. Back up the old build: `cp -a ~/automation/src ~/automation/static ~/automation/Cargo.* ~/automation/backup-$(date +%F)/`.
-2. Copy `Cargo.toml`, `Cargo.lock`, `src/`, `static/` to `~/automation`.
-3. `cd ~/automation && ~/.cargo/bin/cargo build --release` (new dependencies: a first build takes a long time on
-   905 MB RAM; run it with `-j 2` if it is killed for lack of memory).
-4. Add the new settings to `/etc/automation/automation.env` (see `deploy/automation.env.example`), and install the
-   updated unit: `sudo cp deploy/automation.service /etc/systemd/system/ && sudo systemctl daemon-reload`.
-5. `sudo systemctl restart automation` and watch `sudo journalctl -u automation -f`. The first lines list the
+
+The service runs `/home/<user>/automation/bin/automation-server`. Build it on the PC, not on the Pi
+(cross-compiling in Docker takes about a minute; building on the Pi's 905 MB RAM takes 30+ minutes).
+
+1. `scripts/build-server-pi.sh` (repo root) → `build/server-aarch64/automation-server`.
+2. Copy it to the Pi as `~/automation/bin/automation-server.new`, `chmod 755`.
+3. Optional dry run with the real settings on a spare port, while the live server keeps running:
+   export each line of `/etc/automation/automation.env`, set `AUTOMATION_BIND=127.0.0.1:3999` and
+   `AUTOMATION_DB=/tmp/dryrun.db`, start it and `curl http://127.0.0.1:3999/login`.
+4. Keep the old binary: `cp -a ~/automation/bin/automation-server ~/automation/backup-$(date +%F)/`, then
+   `mv automation-server.new automation-server`.
+5. If `deploy/automation.service` changed: `sudo install -m 644 automation.service /etc/systemd/system/ && sudo systemctl daemon-reload`.
+   New settings go in `/etc/automation/automation.env` (see `deploy/automation.env.example`).
+6. `sudo systemctl restart automation` and check `sudo journalctl -u automation -n 20`. The first lines list the
    sign-in methods that are on.
 
-Everyone who was signed in with the old in-memory sessions must sign in again once.
+**Rollback:** copy the backed-up binary back to `~/automation/bin/automation-server` and restart.
+The database in `/var/lib/automation/` is only read by the new version; the old one ignores it.
+
+The source in `~/automation` on the Pi (and `cargo build --release` there) still works as a fallback.
 A Cloudflare tunnel maps the public hostname to `http://localhost:3000`.

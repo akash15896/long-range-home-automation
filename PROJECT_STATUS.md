@@ -3,15 +3,18 @@
 Paths below are relative to `firmware/` unless they start with `server/` (the sketches lived in the Arduino
 sketchbook root until 2026-11-18).
 
-## Update 2026-11-18 — server: Google/Apple sign-in + REST API (NOT deployed yet)
+## Update 2026-11-18 — server: Google/Apple sign-in + REST API (DEPLOYED 16:00)
 - Server v0.2.0 in `server/`: Google and Apple sign-in (web + mobile ID tokens), email allowlist with admin/member
   roles, emergency password kept (admin, rate-limited), SQLite user/token store (`/var/lib/automation`), REST API
   `/api/v1/{me,state,commands}` (commands wait for the master's LoRa result), app tokens (15 min access + rotating
   60-day refresh). `/ws/ui` accepts Bearer tokens too. Contract: `server/API.md`; setup: `server/README.md`.
 - Verified in Docker: 14 unit tests, clippy clean, 30/30 end-to-end checks with a fake ESP32 master.
   Not yet tested with real Google/Apple credentials.
-- To deploy: create the Google OAuth web client and the Apple Services ID (steps in `server/README.md`), add the
-  new variables to `/etc/automation/automation.env`, install the updated systemd unit (StateDirectory), build on the Pi.
+- Deployed 2026-11-18 16:00: cross-compiled on the PC (`scripts/build-server-pi.sh`, 54 s), binary now runs from
+  `~/automation/bin/`, new unit installed (DB in `/var/lib/automation/`). Google client + Apple Services ID
+  (`me.akashmahor.automation.web`) and the admin email are in the Pi's env file (backup `automation.env.bak-20261118`).
+  Old binary + unit + source: `~/automation/backup-2026-11-18/`. Logs show all four sign-in methods on.
+- Next: the user tests Google and Apple sign-in in the browser; confirm the master reconnected (page shows Online).
 - Web page: members no longer see LED / Scan / Re-home / Learn travel (the server refuses them anyway).
 
 ## Update 2026-11-16 — curtain node E26D WORKS on the real mechanism (READ FIRST for curtain)

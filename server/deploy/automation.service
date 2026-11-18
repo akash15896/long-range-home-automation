@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 User=akash
 EnvironmentFile=/etc/automation/automation.env
-ExecStart=/home/akash/automation/target/release/automation-server
+ExecStart=/home/akash/automation/bin/automation-server
 Restart=always
 RestartSec=3
 NoNewPrivileges=true

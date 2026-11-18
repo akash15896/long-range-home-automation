@@ -107,11 +107,13 @@ curtain, dim, status, scan) plus `server/static/index.html`. Keep the enum value
   and `API.md`.
 - Verify without a Rust install: `docker run --rm -v "<repo>/server:/src" -w /src rust:1-bookworm cargo test`
   (and `cargo clippy --all-targets`).
-- Deployed on the Pi as systemd service `automation` from `~/automation` (a plain copy, not a git checkout),
+- Deployed on the Pi as systemd service `automation`, binary `~/automation/bin/automation-server` (source copy in `~/automation`, not a git checkout),
   listening on 127.0.0.1:3000; Cloudflare tunnel maps the public hostname to it.
-- Deploy flow (**ask first**): back up the Pi's `src/` and `static/`, copy the changed files to `~/automation`,
-  `~/.cargo/bin/cargo build --release` (incremental ~1 min; a clean build ~17 min and may need swap on 905 MB RAM),
-  `sudo systemctl restart automation`, check `sudo journalctl -u automation -f`.
+- Deploy flow (**ask first**): cross-compile on the PC with `scripts/build-server-pi.sh` (~1 min, Docker), copy the
+  binary to `~/automation/bin/`, keep the old one in a dated backup folder, restart, check the journal. Full steps and
+  rollback: `server/README.md`. Do not build on the Pi (30+ minutes on 905 MB RAM).
+- `pkill -f <pattern>` over SSH also matches the SSH command's own shell (its command line contains the pattern);
+  kill by PID or use `pgrep -x` instead.
 - Keep this repo's `server/` identical to what runs on the Pi.
 
 ## Conventions
