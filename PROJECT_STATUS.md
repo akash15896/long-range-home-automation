@@ -14,7 +14,8 @@ sketchbook root until 2026-11-18).
   `~/automation/bin/`, new unit installed (DB in `/var/lib/automation/`). Google client + Apple Services ID
   (`me.akashmahor.automation.web`) and the admin email are in the Pi's env file (backup `automation.env.bak-20261118`).
   Old binary + unit + source: `~/automation/backup-2026-11-18/`. Logs show all four sign-in methods on.
-- Next: the user tests Google and Apple sign-in in the browser; confirm the master reconnected (page shows Online).
+- **Tested live 2026-11-18:** Google sign-in (16:05) and Apple sign-in (16:07, shared the same Gmail, so one account)
+  both work on the web; a curtain `open` for E26D was sent from the signed-in page at 16:07. No server errors.
 - Users are managed in the env file for now (how-to: `server/README.md` → "Adding or removing people"). Offered,
   not started: an approval screen (pending requests, approve/deny, roles, remove) stored in the database.
 - iOS app: plan and rules in `ios/README.md`. Before starting it, create the Google **iOS** OAuth client and add its
